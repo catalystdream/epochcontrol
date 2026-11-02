@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/control.schema.json",
+  "title": "control.json",
+  "description": "Written atomically by the app, CLI or an agent. The package applies each seq once. mode=os records a signal sent by EpochControl, so a stale heartbeat reads as paused, not stalled (PRD §11).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Format version. A reader must not crash on a higher value (PRD NF9)."
+    },
+    "command": {
+      "enum": [
+        "none",
+        "pause",
+        "resume",
+        "stop"
+      ]
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "by": {
+      "enum": [
+        "app",
+        "cli",
+        "agent"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "cooperative",
+        "os"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "command",
+    "seq",
+    "issued_at",
+    "by",
+    "mode"
+  ],
+  "additionalProperties": false
+}

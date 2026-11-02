@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/metrics.schema.json",
+  "title": "metrics.jsonl line",
+  "description": "One line per logged point, append only. Named metrics beyond these are allowed. NaN and infinity are written as null, because JSON has neither.",
+  "type": "object",
+  "properties": {
+    "t": {
+      "type": "number"
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "step": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "train": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "val": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "lr": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "t",
+    "epoch"
+  ],
+  "additionalProperties": {
+    "type": [
+      "number",
+      "null"
+    ]
+  }
+}

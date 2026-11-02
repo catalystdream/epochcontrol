@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/status.schema.json",
+  "title": "status.json",
+  "description": "Rewritten atomically by the package about once a second. `lost` and `stalled` are never written here: readers derive them (PRD §11).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Format version. A reader must not crash on a higher value (PRD NF9)."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$"
+    },
+    "state": {
+      "enum": [
+        "starting",
+        "running",
+        "paused",
+        "stopping",
+        "stopped",
+        "finished",
+        "failed"
+      ]
+    },
+    "epoch": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "total_epochs": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "step": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "total_steps": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "best": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "monitor": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "min",
+            "max"
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "epoch",
+        "monitor",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "patience": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "since_best": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "limit",
+        "since_best"
+      ],
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "wall_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "active_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "paused_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "slept_s": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "wall_s",
+        "active_s",
+        "paused_s",
+        "slept_s"
+      ],
+      "additionalProperties": false
+    },
+    "eta_s": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "heartbeat": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pid_start": {
+      "type": "number"
+    },
+    "last_seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Highest control.json seq applied, so a command is acknowledged and never repeated (PRD CTL5)."
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "state",
+    "epoch",
+    "total_epochs",
+    "timing",
+    "heartbeat",
+    "pid",
+    "pid_start",
+    "last_seq"
+  ],
+  "additionalProperties": false
+}

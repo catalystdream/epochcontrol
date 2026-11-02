@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/meta.schema.json",
+  "title": "meta.json",
+  "description": "Written once when a run starts, by the package.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": 1,
+      "description": "Format version. A reader must not crash on a higher value (PRD NF9)."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pid_start": {
+      "type": "number",
+      "description": "Process start time, seconds since the epoch. With pid, proves it is the same process (PRD CTL6)."
+    },
+    "host": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "total_epochs": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "source": {
+      "enum": [
+        "library",
+        "loop",
+        "wrap"
+      ],
+      "description": "How the run was created: start(), loop() or `epochcontrol wrap`."
+    },
+    "framework": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "library_version": {
+      "type": "string"
+    },
+    "pause_mode": {
+      "enum": [
+        "cooperative",
+        "os",
+        "both"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "run_dir": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The user's own output folder, if given. Never deleted by EpochControl."
+    },
+    "script": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Only with record_command=True: it may contain secrets (PRD NF6)."
+    }
+  },
+  "required": [
+    "schema",
+    "run_id",
+    "name",
+    "pid",
+    "pid_start",
+    "host",
+    "started_at",
+    "source",
+    "library_version",
+    "pause_mode"
+  ],
+  "additionalProperties": false
+}

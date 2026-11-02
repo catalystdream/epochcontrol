@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "run_id": "20261103-104512-7f3a",
+  "name": "tft-lstm lumo s43",
+  "pid": 40751,
+  "pid_start": 1793353512.0,
+  "host": "macbook",
+  "started_at": "2026-11-03T10:45:12+01:00",
+  "total_epochs": 600,
+  "source": "library",
+  "framework": null,
+  "library_version": "0.1.0",
+  "pause_mode": "cooperative",
+  "tags": [
+    "lumo"
+  ],
+  "run_dir": "results/LUMO_mac_tft-lstm_s43",
+  "script": "train.py"
+}

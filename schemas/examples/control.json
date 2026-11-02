@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "command": "pause",
+  "seq": 1,
+  "issued_at": "2026-11-03T13:21:03+01:00",
+  "by": "app",
+  "mode": "cooperative"
+}

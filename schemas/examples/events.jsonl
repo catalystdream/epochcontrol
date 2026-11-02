@@ -1,0 +1,3 @@
+{"t": 1793353512.2, "type": "started", "by": "library"}
+{"t": 1793358000.0, "type": "slept", "by": "library", "duration_s": 2292.3}
+{"t": 1793360000.0, "type": "paused", "by": "app"}

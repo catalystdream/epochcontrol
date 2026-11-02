@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Reviewed by Harrish. Open: D3 (not needed until v1.0) |
-| **Version** | 0.4, 2 November 2026 (renamed from EpochBar; `loop()` added) |
+| **Version** | 0.5, 2 November 2026 (renamed from EpochBar; `loop()` and tqdm subclass added) |
 | **Owner** | Harrish Joseph |
 | **Type** | Open-source project: a Python package and a macOS app |
 | **Related** | `plan.md` (design notes, 30 October 2026) |
@@ -240,6 +240,7 @@ run.finish()
 | FW2 | Keras callback | P1 | Example runs in CI |
 | FW3 | Hugging Face `TrainerCallback` | P1 | Example runs in CI |
 | FW4 | JAX example using the core API, no adapter needed | P1 | Example runs in CI |
+| FW6 | `from epochcontrol.tqdm import tqdm`: a subclass of tqdm, in the way `tqdm.contrib.telegram` is. Changing that one import adds reporting, pause and stop at each iteration, and the terminal bar still works. tqdm stays an optional dependency, not a fork | P1 | An existing tqdm script gains pause and stop with only the import changed |
 | FW5 | Read existing `train_history.json`, TensorBoard or W&B offline folders, for runs without the library | P2 | |
 
 ---
@@ -388,7 +389,7 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 |---|---|---|
 | **v0.1, Python only** | Repo with `CLAUDE.md`, schemas, CI, LIB and CTL P0s, timing, CLI with `--json`, `agent-guide`, `llms.txt` | A real MPS run is paused, resumed and stopped from the CLI, and timing survives a lid close |
 | **v0.2, app MVP** | All APP P0s | One week of real overnight runs monitored from the menu bar |
-| **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
+| **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, tqdm subclass, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
 | **v0.4, frameworks** | Lightning, Keras, Hugging Face, JAX | Examples run in CI |
 | **v1.0, public** | Signed app, Homebrew, docs, README GIF | A fresh Mac installs through brew with no security prompts |
 | **v2** | Remote runs over SSH, GPU and power readings, iPhone widget, MCP server if needed | |
@@ -449,6 +450,7 @@ Write your answer in the last column. Proposals are mine.
 | New **TIME3** for SIGSTOP freezes | The plan says the library must subtract these, but not how |
 | Releases v0.1 to v1.0 replace milestones M0 to M6, same order | Each release is usable on its own |
 | New risks R3, R6 and R7 | Notifications when unsigned, scope, and competition for your time |
+| New tqdm subclass (FW6), instead of a fork | Reaches existing tqdm code with one changed import, and leaves tqdm maintained by its own team |
 | New `epochcontrol.loop()`, one line like tqdm (LIB0) | The easiest possible start, and it works for any long Python loop |
 | Renamed from EpochBar to EpochControl | An active Mac App Store tool is called EpochBar. `plan.md` keeps the old name |
 | Success measures added | To tell whether v1.0 worked |

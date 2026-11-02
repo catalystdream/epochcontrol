@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/events.schema.json",
+  "title": "events.jsonl line",
+  "description": "One line per state change, append only. Used for the timeline.",
+  "type": "object",
+  "properties": {
+    "t": {
+      "type": "number"
+    },
+    "type": {
+      "enum": [
+        "started",
+        "paused",
+        "resumed",
+        "slept",
+        "os_frozen",
+        "checkpoint_saved",
+        "stopping",
+        "stopped",
+        "finished",
+        "failed"
+      ]
+    },
+    "by": {
+      "enum": [
+        "app",
+        "cli",
+        "agent",
+        "library"
+      ]
+    },
+    "duration_s": {
+      "type": "number",
+      "minimum": 0,
+      "description": "For slept and os_frozen: how long."
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "t",
+    "type"
+  ],
+  "additionalProperties": false
+}
