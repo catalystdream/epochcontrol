@@ -1,8 +1,9 @@
 """Open the menu-bar app when a run starts (PRD LIB13).
 
 Best effort and never blocking: on a Mac with a screen session, `open -g` starts the app in
-the background (no focus change) or does nothing if it is already running. Any failure,
-including the app not being installed, is ignored.
+the background (no focus change) or does nothing if it is already running. Over SSH it does
+this only if the same user is logged in at the Mac (locked screen included), so the app has a
+menu bar to appear in. Any failure, including the app not being installed, is ignored.
 """
 
 from __future__ import annotations
@@ -15,13 +16,21 @@ BUNDLE_ID = "io.github.catalystdream.epochcontrol"
 _tried = False
 
 
-def should_open(environ=os.environ, platform: str = sys.platform) -> bool:
+def console_is_mine() -> bool:
+    """True if this user is the one logged in at the Mac's screen (owner of /dev/console)."""
+    try:
+        return os.stat("/dev/console").st_uid == os.getuid()
+    except OSError:
+        return False
+
+
+def should_open(environ=os.environ, platform: str = sys.platform, console_mine=console_is_mine) -> bool:
     if platform != "darwin":
         return False
     if environ.get("EPOCHCONTROL_NO_APP"):
         return False
     if environ.get("SSH_CONNECTION") or environ.get("SSH_TTY"):
-        return False  # a remote shell: no screen to show the app on
+        return console_mine()  # over SSH: only if you are also logged in at the Mac
     return True
 
 

@@ -180,7 +180,7 @@ run.finish()
 | LIB5 | Tracks best value, best epoch and patience count | P0 | Correct for min and max modes |
 | LIB6 | Calculates ETA from active time only | P0 | ETA does not jump after a sleep or pause |
 | LIB12 | `stop_on_patience=True` in `start()` (Harrish, 3 Nov): after `patience` epochs without a better `monitor` value the run saves its checkpoint and ends as finished, the reason in the event log. Off by default: patience otherwise only reports | P0 | Test: ends at the right epoch, checkpoint saved, state finished |
-| LIB13 | A run opens the Mac app (Harrish, 3 Nov: instead of a login item): `open -g` in the background, once per process, only on a Mac with a screen session (not over SSH); errors and a missing app are ignored; `open_app=False` or `EPOCHCONTROL_NO_APP=1` turns it off | P0 | Closed app opens when a run starts; a failure never stops the run |
+| LIB13 | A run opens the Mac app (Harrish, 3 Nov: instead of a login item): `open -g` in the background, once per process, only on a Mac with a screen session (over SSH only if the same user is logged in at the Mac, locked screen included); errors and a missing app are ignored; `open_app=False` or `EPOCHCONTROL_NO_APP=1` turns it off | P0 | Closed app opens when a run starts; a failure never stops the run |
 | LIB7 | `run.step()` for progress inside long epochs, limited to about 4 writes a second | P1 | Calling it on every batch adds no measurable slowdown |
 | LIB8 | Context manager form, `with epochcontrol.start(...) as run:` | P1 | An exception inside marks the run `failed` |
 | LIB9 | An uncaught exception marks the run `failed` and records the error | P0 | Test raises in the loop and checks the state |
@@ -274,6 +274,23 @@ run.finish()
 | APP13 | Stop always asks for confirmation | P0 | |
 | APP14 | Open run folder, copy command | P1 | |
 | APP15 | Queue card showing finished, running and waiting jobs | P1 | |
+
+### Remote runs (v0.4)
+
+Runs on another machine (the DGX Spark, atlas, a cloud box) shown in the same menu bar. The
+package on that machine is unchanged; the app reaches it over SSH (Tailscale) and uses the
+CLI's `--json` output, so no server or open port is needed.
+
+| ID | Requirement | Pri | Accepted when |
+|---|---|---|---|
+| REM1 | Settings: a list of hosts as SSH names (`spark`, `atlas`), using the user's own SSH config and keys | P1 | A host added in settings appears in the run list |
+| REM2 | Every few seconds (default 5) the app runs `ssh <host> epochcontrol ls --json` in the background, with BatchMode and a short connect timeout; the UI never waits on it | P1 | A slow or dead host never freezes the popover |
+| REM3 | Remote runs appear with a host label (e.g. "spark · tft lumo") next to local ones | P1 | Local and remote runs are told apart at a glance |
+| REM4 | Pause, Resume and Stop run `ssh <host> epochcontrol pause|resume|stop <run> --by app --json`; the result's `applied` is shown | P1 | A remote run is paused and resumed from the Mac |
+| REM5 | `epochcontrol metrics <run> --json [--since EPOCH]` on the package side, so the chart loads only new points for the selected remote run | P1 | The chart of a remote run updates without re-reading everything |
+| REM6 | An unreachable host shows its runs as **offline** (last known state, greyed), never as lost or stalled | P1 | Mac off Tailscale: runs show offline, not lost |
+| REM7 | Opening the app on the remote side is never attempted; LIB13 stays local | P1 | No `open` call on Linux or over SSH without a screen session |
+| REM8 | Nothing secret leaves the remote machine beyond the status the CLI already prints (no command lines unless `record_command=True`) | P1 | Review of the JSON fields |
 
 ### Behaviour
 
@@ -395,9 +412,9 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 | **v0.1, Python only** | Repo with `CLAUDE.md`, schemas, CI, LIB and CTL P0s, timing, CLI with `--json`, `agent-guide`, `llms.txt` | A real MPS run is paused, resumed and stopped from the CLI, and timing survives a lid close |
 | **v0.2, app MVP** | All APP P0s | One week of real overnight runs monitored from the menu bar |
 | **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, tqdm subclass, `epochcontrol app`, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
-| **v0.4, frameworks** | Lightning, Keras, Hugging Face, JAX | Examples run in CI |
+| **v0.4, frameworks and remote runs** | Lightning, Keras, Hugging Face, JAX; runs on other machines over SSH (REM1–REM8, moved from v2 on 3 Nov) | Examples run in CI; a DGX Spark run is watched, paused and stopped from the Mac menu bar |
 | **v1.0, public** | Signed app, Homebrew, docs, README GIF | A fresh Mac installs through brew with no security prompts |
-| **v2** | Remote runs over SSH, GPU and power readings, iPhone widget, MCP server if needed | |
+| **v2** | GPU and power readings, iPhone widget, MCP server if needed | |
 
 v0.1 is useful on its own, and it needs no Swift.
 
@@ -435,7 +452,7 @@ Write your answer in the last column. Proposals are mine.
 | D6 | Swift version | Swift 6 | **Changed from `plan.md`** (5.10+): your Mac has Swift 6.4 and Xcode 27 |ok |
 | D7 | Default pause mode | Cooperative | Safest, and allows a checkpoint. OS-level stays opt-in until R1 is tested |ok |
 | D8 | Queue in v1.0? | Yes, but as its own release (v0.3) | It solves a real problem, but must not delay the core | Yes, v0.3 |
-| D9 | Remote runs in v2 | Keep in v2 | You run on the DGX Spark too, so tell me if this matters sooner. The file format already allows it |ok |
+| D9 | Remote runs in v2 | Keep in v2 | You run on the DGX Spark too, so tell me if this matters sooner. The file format already allows it |ok · **changed 3 Nov: moved to v0.4** (REM1–REM8) |
 | D10 | Licence | MIT | Common and simple for a tool like this | ok|
 | D11 | Release before v1.0 to the public? | Yes, publish v0.1 on PyPI early | Early feedback, and it reserves the name | ok|
 | D12 | Start date | After the paper revision | Your main job at the moment |side by side |
@@ -454,6 +471,7 @@ Write your answer in the last column. Proposals are mine.
 | New **Stalled** state and the frozen-or-dead rule | A frozen process cannot update its heartbeat, so the plan's rules could not show an OS pause correctly |
 | New **TIME3** for SIGSTOP freezes | The plan says the library must subtract these, but not how |
 | Releases v0.1 to v1.0 replace milestones M0 to M6, same order | Each release is usable on its own |
+| Remote runs moved from v2 to v0.4, with REM1–REM8 | Harrish trains on the DGX Spark too |
 | New risks R3, R6 and R7 | Notifications when unsigned, scope, and competition for your time |
 | New tqdm subclass (FW6), instead of a fork | Reaches existing tqdm code with one changed import, and leaves tqdm maintained by its own team |
 | New `epochcontrol.loop()`, one line like tqdm (LIB0) | The easiest possible start, and it works for any long Python loop |

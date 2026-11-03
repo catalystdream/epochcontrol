@@ -6,7 +6,18 @@ def test_only_on_a_mac_with_a_screen():
     assert _app.should_open({}, "darwin")
     assert not _app.should_open({}, "linux")
     assert not _app.should_open({"EPOCHCONTROL_NO_APP": "1"}, "darwin")
-    assert not _app.should_open({"SSH_CONNECTION": "1.2.3.4 5 6.7.8.9 22"}, "darwin")
+
+
+def test_over_ssh_only_if_logged_in_at_the_mac():
+    ssh = {"SSH_CONNECTION": "1.2.3.4 5 6.7.8.9 22"}
+    assert _app.should_open(ssh, "darwin", console_mine=lambda: True)
+    assert not _app.should_open(ssh, "darwin", console_mine=lambda: False)
+    assert not _app.should_open({"SSH_TTY": "/dev/ttys003"}, "darwin", console_mine=lambda: False)
+    assert not _app.should_open(ssh, "linux", console_mine=lambda: True)
+
+
+def test_console_owner_check_runs():
+    assert _app.console_is_mine() in (True, False)
 
 
 def test_a_run_opens_the_app_once_in_the_background(home, clock, monkeypatch):
