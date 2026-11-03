@@ -106,6 +106,7 @@ struct RunsCard: View {
     @Binding var expanded: Bool
     let namespace: Namespace.ID
     let animation: Animation
+    @State private var listHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -129,18 +130,24 @@ struct RunsCard: View {
             }
             .buttonStyle(.plain)
             Text(summary).font(.callout).foregroundStyle(Theme.green)
-            if expanded {
-                GlassGroup(spacing: 4) {
-                    VStack(spacing: 2) {
-                        ForEach(store.shown) { run in
-                            RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
-                                withAnimation(animation) { store.selectedID = run.id }
-                            }
+            // The rows stay in place; only the list's height animates between 0 and its
+            // measured height. Inserting and removing them made the glass lay out twice,
+            // which showed as a jerk after expanding.
+            GlassGroup(spacing: 4) {
+                VStack(spacing: 2) {
+                    ForEach(store.shown) { run in
+                        RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
+                            withAnimation(animation) { store.selectedID = run.id }
                         }
                     }
                 }
-                .transition(.opacity) // rows fade while the card below slides up with the window
             }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+            .frame(height: expanded ? (listHeight > 0 ? listHeight : nil) : 0, alignment: .top)
+            .opacity(expanded ? 1 : 0)
+            .clipped()
+            .allowsHitTesting(expanded)
         }
         .padding(12)
         .card()
@@ -202,14 +209,12 @@ struct Tiles: View {
                  value: run.progress.map { "\(Int(($0 * 100).rounded()))" } ?? "\(run.epoch)",
                  unit: run.progress != nil ? "%" : "", side: "Done",
                  bar: run.progress, barColor: run.state == .paused ? Theme.amber : Theme.green,
-                 lines: [progressText(run) + " epochs",
-                         (s?.eta_s).map { run.state == .running ? "ETA \(duration($0))" : "ETA —" } ?? "ETA —"])
+                 lines: [progressText(run) + " · ETA " + ((s?.eta_s).map { run.state == .running ? duration($0) : "—" } ?? "—")])
             Tile(icon: "trophy.fill", title: "Best val", iconColor: Theme.amber,
                  badge: bestBadge(s), value: s?.best.map { $0.value.formatted(.number.precision(.significantDigits(4))) } ?? "—",
                  unit: "", side: s?.best.map { "ep \($0.epoch)" } ?? "",
                  bar: nil, barColor: .clear,
-                 lines: [s?.best.map { "monitor \($0.monitor ?? "val") · \($0.mode ?? "min")" } ?? "no value logged",
-                         "green line on the chart"])
+                 lines: [s?.best.map { "\($0.monitor ?? "val") · \($0.mode ?? "min") · green on chart" } ?? "no value logged"])
             }
             GridRow {
             patienceTile(s)
@@ -217,8 +222,7 @@ struct Tiles: View {
                  badge: (s?.timing?.slept_s ?? 0) > 0 ? Badge(text: "SLEPT", color: .secondary) : nil,
                  value: duration(s?.timing?.active_s ?? 0), unit: "", side: "Active",
                  bar: nil, barColor: .clear,
-                 lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))",
-                         "wall \(duration(s?.timing?.wall_s ?? 0))"])
+                 lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))"])
             }
         }
         if run.state == .stalled || run.state == .lost || s?.error != nil {
@@ -240,7 +244,7 @@ struct Tiles: View {
         guard let p = s?.patience else {
             return Tile(icon: "hourglass", title: "Patience", iconColor: .secondary, badge: nil, value: "—",
                         unit: "", side: "", bar: nil, barColor: .clear,
-                        lines: ["not set", "start(patience=…)"])
+                        lines: ["not set: start(patience=…)"])
         }
         let share = Double(p.since_best) / Double(max(1, p.limit))
         let (text, color): (String, Color) = share >= 1 ? ("EXCEEDED", Theme.red)
@@ -248,8 +252,7 @@ struct Tiles: View {
         return Tile(icon: "hourglass", title: "Patience", iconColor: color, badge: Badge(text: text, color: color),
                     value: "\(p.since_best)", unit: "/\(p.limit)", side: "Epochs",
                     bar: min(1, share), barColor: color,
-                    lines: ["since the best epoch",
-                            share >= 1 ? "your script decides to stop" : "\(max(0, p.limit - p.since_best)) epochs left"])
+                    lines: [share >= 1 ? "since best · limit reached" : "since best · \(max(0, p.limit - p.since_best)) left"])
     }
 }
 
@@ -266,16 +269,16 @@ struct Tile: View {
     let lines: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: icon).font(.caption).foregroundStyle(iconColor)
-                    .frame(height: 20) // the badge height, so tiles without a badge line up
+                    .frame(height: 18) // the badge height, so tiles without a badge line up
                 Text(title.uppercased()).font(.caption).foregroundStyle(.secondary).tracking(0.5)
                 Spacer(minLength: 2)
                 if let badge { badge }
             }
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.system(size: 26, weight: .bold, design: .monospaced))
+                Text(value).font(.system(size: 22, weight: .bold, design: .monospaced))
                     .minimumScaleFactor(0.6).lineLimit(1)
                     .contentTransition(.numericText())
                 Text(unit).font(.callout.weight(.semibold)).foregroundStyle(.secondary)
@@ -283,15 +286,15 @@ struct Tile: View {
                 Text(side).font(.callout).foregroundStyle(.secondary)
             }
             // Every tile keeps the same rows so a row of tiles lines up.
-            Bar(value: bar ?? 0, color: barColor, height: 6)
+            Bar(value: bar ?? 0, color: barColor, height: 5)
                 .opacity(bar == nil ? 0 : 1)
                 .animation(.easeOut(duration: 0.4), value: bar)
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(lines, id: \.self) { Text($0) }
             }
-            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            .font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) // fill the grid row
         .card()
     }
