@@ -170,3 +170,30 @@ def test_import_has_no_heavy_dependencies():
     code = "import sys, epochcontrol; bad=[m for m in ('torch','jax','tensorflow','numpy') if m in sys.modules]; print(bad)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert out.strip() == "[]"
+
+
+def test_stop_on_patience_ends_as_finished(home, clock):
+    run = start(home, clock, total_epochs=100, patience=3, stop_on_patience=True)
+    saved = []
+    run.on_checkpoint(lambda: saved.append(run.done))
+    vals = [0.5, 0.4, 0.45, 0.46, 0.47, 0.3]  # best at epoch 1, then 3 epochs without improvement
+    seen = []
+    for e in run.epochs():
+        seen.append(e)
+        run.log(epoch=e, val=vals[e])
+    run.finish()
+    assert seen == [0, 1, 2, 3, 4] and saved == [5]
+    d = run_dir(home)
+    s = read(d / "status.json")
+    assert s["state"] == "finished" and s["patience"] == {"limit": 3, "since_best": 3}
+    stop = [e for e in lines(d / "events.jsonl") if e["type"] == "stopping"]
+    assert len(stop) == 1 and "early stop" in stop[0]["detail"]
+
+
+def test_patience_without_stop_only_reports(home, clock):
+    run = start(home, clock, total_epochs=8, patience=2)
+    for e in run.epochs():
+        run.log(epoch=e, val=1.0 + e)  # never improves after epoch 0
+    run.finish()
+    s = read(run_dir(home) / "status.json")
+    assert s["state"] == "finished" and s["epoch"] == 8 and s["patience"]["since_best"] == 7

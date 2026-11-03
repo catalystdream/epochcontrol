@@ -15,6 +15,8 @@ final class RunStore {
     private var seenEnded: Set<String> = []
     private let root: URL
     private var task: Task<Void, Never>?
+    /// Called after every refresh, e.g. to redraw the menu-bar icon.
+    @ObservationIgnored var onRefresh: (() -> Void)?
 
     init(root: URL = Files.runsDirectory(), autoRefresh: Bool = true) {
         self.root = root
@@ -36,6 +38,7 @@ final class RunStore {
             selectedID = (runs.first(where: { $0.state.isLive }) ?? runs.first)?.id
         }
         if let run = selected { loadMetrics(run) }
+        onRefresh?()
     }
 
     var selected: RunInfo? { runs.first { $0.id == selectedID } }

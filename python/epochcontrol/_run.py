@@ -46,7 +46,7 @@ class Run:
     def __init__(self, name: str, total: int | None = None, *, source: str = "library",
                  patience: int | None = None, monitor: str = "val", mode: str = "min",
                  run_dir: str | os.PathLike | None = None, tags: list[str] | None = None,
-                 checkpoint_on_pause: bool = True, clock=None, home: Path | None = None,
+                 checkpoint_on_pause: bool = True, stop_on_patience: bool = False, clock=None, home: Path | None = None,
                  heartbeat: bool = True, heartbeat_s: float = HEARTBEAT_S, poll_s: float = POLL_S):
         from . import __version__
 
@@ -58,6 +58,8 @@ class Run:
         self.monitor = monitor
         self.mode = mode
         self.checkpoint_on_pause = checkpoint_on_pause
+        self.stop_on_patience = stop_on_patience
+        self._early_stop = False
         self.clock = clock or SystemClock()
         self.timer = Timer(self.clock)
         self.done = 0
@@ -68,7 +70,8 @@ class Run:
         self.error: dict | None = None
         self._pause_wanted = False
         self._stop_wanted = False
-        self._saved_for_seq = 0
+        self._requests = 0      # pause/stop requests so far: each gets at most one checkpoint
+        self._saved_for = 0
         self._checkpoint: Callable[[], Any] | None = None
         self._poll_s = poll_s
         self._last_poll: float | None = None
@@ -178,6 +181,16 @@ class Run:
             else:
                 self.since_best += 1
         self.done = max(self.done, int(epoch) + 1)
+        if (self.stop_on_patience and self.patience and self.since_best >= self.patience
+                and not self._stop_wanted):
+            # Early stopping: same path as Stop (checkpoint, then the loop ends), but the
+            # run ends as finished, with the reason in the event log.
+            self._stop_wanted = True
+            self._early_stop = True
+            self._requests += 1
+            self.state = "stopping"
+            self.event("stopping", detail=f"early stop: no improvement for {self.since_best} epochs "
+                                          f"(patience {self.patience})")
         self.write_status()
 
     def step_done(self) -> None:
@@ -197,6 +210,8 @@ class Run:
         self.last_seq = c["seq"]
         cmd = c.get("command")
         self.event("command", by=c.get("by", "cli"), detail=str(cmd))
+        if cmd in ("pause", "stop"):
+            self._requests += 1
         if cmd == "pause":
             self._pause_wanted = True
         elif cmd == "resume":
@@ -223,9 +238,9 @@ class Run:
         self.poll()
         wanted = self._stop_wanted or (self._pause_wanted and self.checkpoint_on_pause)
         fn = save or self._checkpoint
-        if not wanted or fn is None or self._saved_for_seq == self.last_seq:
+        if not wanted or fn is None or self._saved_for == self._requests:
             return False
-        self._saved_for_seq = self.last_seq
+        self._saved_for = self._requests
         try:
             fn()
         except Exception as e:  # a failed save must not kill the run either
@@ -288,7 +303,7 @@ class Run:
         if self.state in ENDED:
             return
         if state is None:
-            state = "stopped" if self._stop_wanted else "finished"
+            state = "stopped" if self._stop_wanted and not self._early_stop else "finished"
         self._stop_beat.set()
         if self._beat is not None and self._beat is not threading.current_thread():
             self._beat.join(timeout=2)
@@ -355,7 +370,9 @@ def start(name: str | None = None, total_epochs: int | None = None, **options) -
 
     Options: ``patience``, ``monitor`` (default "val"), ``mode`` ("min" or "max"),
     ``run_dir`` (your own output folder, shown in the app), ``tags``,
-    ``checkpoint_on_pause`` (default True).
+    ``checkpoint_on_pause`` (default True), ``stop_on_patience`` (default False: when
+    True, the run ends once ``patience`` epochs pass without a better ``monitor`` value,
+    saving the checkpoint first, as on Stop).
     """
     if name is None:
         name = Path(sys.argv[0]).stem if sys.argv and sys.argv[0] else "run"

@@ -27,6 +27,8 @@ Wrap the OUTER loop (epochs), not the batch loop. Pause and stop act between ite
         run.log(epoch=epoch, train=train_loss, val=val_loss, lr=current_lr)
     run.finish()
 
+Early stopping: add `stop_on_patience=True` to start(); the run then ends after `patience`
+epochs without a better `monitor` value (checkpoint saved first). Off by default.
 Or use `with epochcontrol.start(...) as run:`; an exception then marks the run failed.
 For a loop that cannot be restructured, at the end of each epoch call:
 `run.log(...)`, `run.checkpoint_if_requested(save_fn)`, then `if run.should_stop(): break`,

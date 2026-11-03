@@ -179,6 +179,7 @@ run.finish()
 | LIB4 | Explicit alternative for loops that cannot be restructured: `should_stop()`, `wait_if_paused()`, `checkpoint_if_requested()` | P0 | Same behaviour as LIB3 |
 | LIB5 | Tracks best value, best epoch and patience count | P0 | Correct for min and max modes |
 | LIB6 | Calculates ETA from active time only | P0 | ETA does not jump after a sleep or pause |
+| LIB12 | `stop_on_patience=True` in `start()` (Harrish, 3 Nov): after `patience` epochs without a better `monitor` value the run saves its checkpoint and ends as finished, the reason in the event log. Off by default: patience otherwise only reports | P0 | Test: ends at the right epoch, checkpoint saved, state finished |
 | LIB7 | `run.step()` for progress inside long epochs, limited to about 4 writes a second | P1 | Calling it on every batch adds no measurable slowdown |
 | LIB8 | Context manager form, `with epochcontrol.start(...) as run:` | P1 | An exception inside marks the run `failed` |
 | LIB9 | An uncaught exception marks the run `failed` and records the error | P0 | Test raises in the loop and checks the state |
