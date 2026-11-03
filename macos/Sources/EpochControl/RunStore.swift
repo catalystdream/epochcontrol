@@ -9,7 +9,8 @@ import Observation
 final class RunStore {
     private(set) var runs: [RunInfo] = []
     private(set) var metrics: [String: [MetricPoint]] = [:]
-    var selectedID: String?
+    /// Selecting a run loads its chart data at once, before the details swap in.
+    var selectedID: String? { didSet { if let run = selected { loadMetrics(run) } } }
     var lastError: String?
     private var metricSizes: [String: Int] = [:]
     private var seenEnded: Set<String> = []
@@ -40,7 +41,8 @@ final class RunStore {
         if selectedID == nil || !runs.contains(where: { $0.id == selectedID }) {
             selectedID = (runs.first(where: { $0.state.isLive }) ?? runs.first)?.id
         }
-        if let run = selected { loadMetrics(run) }
+        // Every listed run's losses stay loaded, so switching never shows an empty chart.
+        for run in shown { loadMetrics(run) }
         onRefresh?()
     }
 

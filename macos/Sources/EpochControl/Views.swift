@@ -202,27 +202,28 @@ struct Tiles: View {
 
     var body: some View {
         let s = run.status
+        // Top row: the two with a bar (progress, patience). Bottom row: no bar, so it is shorter.
         Grid(horizontalSpacing: Theme.gap, verticalSpacing: Theme.gap) {
             GridRow {
-            Tile(icon: "gauge.with.dots.needle.67percent", title: "Progress", iconColor: Theme.green,
-                 badge: Badge(text: run.state.rawValue.uppercased(), color: stateColor(run.state)),
-                 value: run.progress.map { "\(Int(($0 * 100).rounded()))" } ?? "\(run.epoch)",
-                 unit: run.progress != nil ? "%" : "", side: "Done",
-                 bar: run.progress, barColor: run.state == .paused ? Theme.amber : Theme.green,
-                 lines: [progressText(run) + " · ETA " + ((s?.eta_s).map { run.state == .running ? duration($0) : "—" } ?? "—")])
-            Tile(icon: "trophy.fill", title: "Best val", iconColor: Theme.amber,
-                 badge: bestBadge(s), value: s?.best.map { $0.value.formatted(.number.precision(.significantDigits(4))) } ?? "—",
-                 unit: "", side: s?.best.map { "ep \($0.epoch)" } ?? "",
-                 bar: nil, barColor: .clear,
-                 lines: [s?.best.map { "\($0.monitor ?? "val") · \($0.mode ?? "min") · green on chart" } ?? "no value logged"])
+                Tile(icon: "gauge.with.dots.needle.67percent", title: "Progress", iconColor: Theme.green,
+                     badge: Badge(text: run.state.rawValue.uppercased(), color: stateColor(run.state)),
+                     value: run.progress.map { "\(Int(($0 * 100).rounded()))" } ?? "\(run.epoch)",
+                     unit: run.progress != nil ? "%" : "", side: "Done",
+                     bar: run.progress, barColor: run.state == .paused ? Theme.amber : Theme.green,
+                     lines: [progressText(run) + " · ETA " + ((s?.eta_s).map { run.state == .running ? duration($0) : "—" } ?? "—")])
+                patienceTile(s)
             }
             GridRow {
-            patienceTile(s)
-            Tile(icon: "clock.fill", title: "Time", iconColor: Theme.violet,
-                 badge: (s?.timing?.slept_s ?? 0) > 0 ? Badge(text: "SLEPT", color: .secondary) : nil,
-                 value: duration(s?.timing?.active_s ?? 0), unit: "", side: "Active",
-                 bar: nil, barColor: .clear,
-                 lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))"])
+                Tile(icon: "trophy.fill", title: "Best val", iconColor: Theme.amber,
+                     badge: bestBadge(s), value: s?.best.map { $0.value.formatted(.number.precision(.significantDigits(4))) } ?? "—",
+                     unit: "", side: s?.best.map { "ep \($0.epoch)" } ?? "",
+                     bar: nil, barColor: .clear, showsBar: false,
+                     lines: [s?.best.map { "\($0.monitor ?? "val") · \($0.mode ?? "min") · green on chart" } ?? "no value logged"])
+                Tile(icon: "clock.fill", title: "Time", iconColor: Theme.violet,
+                     badge: (s?.timing?.slept_s ?? 0) > 0 ? Badge(text: "SLEPT", color: .secondary) : nil,
+                     value: duration(s?.timing?.active_s ?? 0), unit: "", side: "Active",
+                     bar: nil, barColor: .clear, showsBar: false,
+                     lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))"])
             }
         }
         if run.state == .stalled || run.state == .lost || s?.error != nil {
@@ -266,6 +267,7 @@ struct Tile: View {
     let side: String
     let bar: Double?
     let barColor: Color
+    var showsBar = true // false for a row without bars: that row is shorter
     let lines: [String]
 
     var body: some View {
@@ -285,10 +287,12 @@ struct Tile: View {
                 Spacer(minLength: 4)
                 Text(side).font(.callout).foregroundStyle(.secondary)
             }
-            // Every tile keeps the same rows so a row of tiles lines up.
-            Bar(value: bar ?? 0, color: barColor, height: 5)
-                .opacity(bar == nil ? 0 : 1)
-                .animation(.easeOut(duration: 0.4), value: bar)
+            // Tiles in a row keep the same rows so they line up (an empty bar keeps its space).
+            if showsBar {
+                Bar(value: bar ?? 0, color: barColor, height: 5)
+                    .opacity(bar == nil ? 0 : 1)
+                    .animation(.easeOut(duration: 0.4), value: bar)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(lines, id: \.self) { Text($0) }
             }
@@ -303,6 +307,7 @@ struct Tile: View {
 // MARK: - Loss chart
 
 struct LossCard: View {
+    static let chartHeight: CGFloat = 150 // legend + plot + axis labels, with or without data
     let points: [MetricPoint]
     let best: Best?
     @State private var logScale = false
@@ -313,25 +318,31 @@ struct LossCard: View {
                 Image(systemName: "chart.xyaxis.line").font(.caption).foregroundStyle(.blue)
                 Text("LOSS — EPOCH 0–\(points.last?.epoch ?? 0)").font(.caption).foregroundStyle(.secondary).tracking(0.5)
                 Spacer()
-                if let v = points.last(where: { $0.val != nil })?.val {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(v.formatted(.number.precision(.significantDigits(4))))
-                            .font(.system(size: 17, weight: .bold, design: .monospaced))
-                            .contentTransition(.numericText())
-                        Text("latest val").font(.caption2).foregroundStyle(.secondary)
-                    }
+                // Always present ("—" without data), so the header keeps its height.
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(points.last(where: { $0.val != nil })?.val
+                            .map { $0.formatted(.number.precision(.significantDigits(4))) } ?? "—")
+                        .font(.system(size: 17, weight: .bold, design: .monospaced))
+                        .contentTransition(.numericText())
+                    Text("latest val").font(.caption2).foregroundStyle(.secondary)
                 }
             }
             HStack(spacing: 6) {
                 Chip(text: "Linear", on: !logScale) { logScale = false }
                 Chip(text: "Log", on: logScale) { logScale = true }
             }
-            if points.contains(where: { $0.train != nil || $0.val != nil }) {
-                chart
-            } else {
-                Text("No losses logged yet: use run.log(epoch=…, train=…, val=…)")
-                    .font(.caption).foregroundStyle(.secondary).frame(height: 60)
+            // The chart area is the same size with or without data, so the popover never
+            // changes height when a chart appears.
+            Group {
+                if points.contains(where: { $0.train != nil || $0.val != nil }) {
+                    chart
+                } else {
+                    Text("No losses logged yet: use run.log(epoch=…, train=…, val=…)")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
+            .frame(height: LossCard.chartHeight)
         }
         .padding(12)
         .card()
@@ -390,7 +401,7 @@ struct LossCard: View {
                 }
             }
         }
-        .frame(height: 140)
+        .frame(height: LossCard.chartHeight)
     }
 }
 
