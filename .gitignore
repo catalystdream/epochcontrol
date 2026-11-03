@@ -15,3 +15,7 @@ xcuserdata/
 # virtual environments: *.nosync keeps iCloud from syncing them (see CLAUDE.md)
 .venv*/
 *.nosync/
+
+# Swift build output
+.build/
+macos/build/

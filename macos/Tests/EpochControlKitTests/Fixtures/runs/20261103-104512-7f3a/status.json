@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "run_id": "20261103-104512-7f3a",
+  "state": "running",
+  "epoch": 140,
+  "total_epochs": 600,
+  "step": 12,
+  "total_steps": 40,
+  "best": {
+    "value": 0.02336,
+    "epoch": 128,
+    "monitor": "val",
+    "mode": "min"
+  },
+  "patience": {
+    "limit": 60,
+    "since_best": 12
+  },
+  "timing": {
+    "wall_s": 9312.4,
+    "active_s": 7020.1,
+    "paused_s": 0,
+    "slept_s": 2292.3
+  },
+  "eta_s": 4210,
+  "heartbeat": "2026-11-03T13:20:24+01:00",
+  "pid": 40751,
+  "pid_start": 1793353512.0,
+  "last_seq": 0,
+  "error": null
+}

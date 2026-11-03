@@ -1,0 +1,4 @@
+{"t": 1793353600.1, "epoch": 140, "train": 0.0241, "val": 0.0236, "lr": 0.00071}
+{"t": 1793353660.4, "epoch": 141, "step": 3, "train": null, "val": 0.0239, "grad_norm": 1.4}
+not json
+{"t": 1, "epoch": 142, "val": null}

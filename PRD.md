@@ -222,6 +222,7 @@ run.finish()
 | CLI1 | `epochcontrol ls` lists runs and states | P0 | Works with no app installed |
 | CLI2 | `epochcontrol pause / resume / stop <run>` | P0 | Same effect as the app's buttons |
 | CLI3 | `epochcontrol wrap -- <cmd>` runs an unmodified script, reads progress from its output, and supports OS-level control only | P1 | A plain tqdm script shows progress |
+| CLI5 | `epochcontrol app` opens the Mac app, or offers to download it if it is missing; the app, when it finds no runs, shows the `pip install` line and the `loop()` example | P1 | One command leads a Python user to the app |
 | CLI4 | `epochcontrol clean --older 30d` removes old run records, never the user's own outputs | P1 | Test confirms `run_dir` is untouched |
 
 ### Queue
@@ -378,7 +379,7 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 
 | Item | Plan |
 |---|---|
-| **Repository** | One GitHub repo with `python/`, `macos/`, `schemas/`, `examples/`, `docs/` |
+| **Repository** | One GitHub repo with `python/`, `macos/`, `schemas/`, `examples/`, `docs/`. Two installs, released separately with their own tags (`py-v…` for PyPI, `app-v…` for the app); the schemas keep them compatible |
 | **Licence** | MIT |
 | **Python package** | PyPI, published from GitHub Actions with trusted publishing |
 | **App, before v1.0** | Unsigned builds on GitHub Releases, or build from source |
@@ -389,7 +390,7 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 |---|---|---|
 | **v0.1, Python only** | Repo with `CLAUDE.md`, schemas, CI, LIB and CTL P0s, timing, CLI with `--json`, `agent-guide`, `llms.txt` | A real MPS run is paused, resumed and stopped from the CLI, and timing survives a lid close |
 | **v0.2, app MVP** | All APP P0s | One week of real overnight runs monitored from the menu bar |
-| **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, tqdm subclass, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
+| **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, tqdm subclass, `epochcontrol app`, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
 | **v0.4, frameworks** | Lightning, Keras, Hugging Face, JAX | Examples run in CI |
 | **v1.0, public** | Signed app, Homebrew, docs, README GIF | A fresh Mac installs through brew with no security prompts |
 | **v2** | Remote runs over SSH, GPU and power readings, iPhone widget, MCP server if needed | |
