@@ -3,52 +3,58 @@ import Charts
 import EpochControlKit
 import SwiftUI
 
-// Liquid Glass on macOS 26 and later, materials before (PRD APP24). Selection moves with a
-// spring; the card swaps with a blur-fade; numbers roll (PRD APP25). Reduce Motion turns
-// the movement into plain fades.
+// Look: dark cards with big numbers and small uppercase labels, monospaced type, one corner
+// radius everywhere (Theme.radius). Liquid Glass on macOS 26 and later, materials before
+// (PRD APP24). Selection moves with a spring; the details swap with a blur-fade; numbers
+// roll (PRD APP25). Reduce Motion turns the movement into plain fades.
+
+enum Theme {
+    static let radius: CGFloat = 12      // cards, rows, tiles, buttons: the same everywhere
+    static let badgeRadius: CGFloat = 6
+    static let gap: CGFloat = 10
+    static let green = Color(red: 0.33, green: 0.84, blue: 0.45)
+    static let amber = Color(red: 0.98, green: 0.76, blue: 0.20)
+    static let red = Color(red: 0.94, green: 0.33, blue: 0.31)
+    static let violet = Color(red: 0.76, green: 0.40, blue: 0.95)
+}
 
 struct PopoverView: View {
     let store: RunStore
     @State private var confirmStop = false
+    @State private var runsExpanded = true
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("EpochControl").font(.headline)
-                Spacer()
-                Text(Host.current().localizedName ?? "").font(.caption).foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: Theme.gap) {
+            Header(store: store)
             if store.runs.isEmpty {
                 EmptyState()
             } else {
-                RunList(store: store, namespace: selection, animation: animation)
+                RunsCard(store: store, expanded: $runsExpanded, namespace: selection, animation: animation)
                 if let run = store.selected {
-                    VStack(spacing: 12) {
-                        RunCard(run: run)
-                        LossChart(points: store.metrics[run.id] ?? [], best: run.status?.best)
+                    Group {
+                        Tiles(run: run)
+                        LossCard(points: store.metrics[run.id] ?? [], best: run.status?.best)
                     }
-                    .id(run.id) // a new run swaps the whole card
+                    .id(run.id) // a new run swaps the details
                     .transition(reduceMotion ? AnyTransition.opacity
                                 : AnyTransition(.blurReplace).combined(with: .scale(scale: 0.98)))
-                    Controls(run: run, store: store, confirmStop: $confirmStop)
+                    if let error = store.lastError {
+                        Text(error).font(.caption).foregroundStyle(Theme.red)
+                    }
+                    FooterBar(run: run, store: store, confirmStop: $confirmStop)
+                } else {
+                    FooterBar(run: nil, store: store, confirmStop: $confirmStop)
                 }
             }
-            if let error = store.lastError {
-                Text(error).font(.caption).foregroundStyle(.red)
-            }
-            HStack {
-                Text("Quitting does not affect your runs").font(.caption2).foregroundStyle(.secondary)
-                Spacer()
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .glassButton()
-                    .controlSize(.small)
-            }
+            if store.runs.isEmpty { FooterBar(run: nil, store: store, confirmStop: $confirmStop) }
         }
+        .fontDesign(.monospaced)
         .padding(14)
-        .frame(width: 390)
+        .frame(width: 430)
         .animation(animation, value: store.selectedID)
+        .animation(animation, value: runsExpanded)
         .onAppear { store.markSeen() }
     }
 
@@ -57,171 +63,357 @@ struct PopoverView: View {
     }
 }
 
-struct EmptyState: View {
+// MARK: - Header
+
+struct Header: View {
+    let store: RunStore
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("No runs yet").font(.subheadline.weight(.semibold))
-            Text("Install the Python package in your training environment:")
-                .font(.caption).foregroundStyle(.secondary)
-            Text("pip install epochcontrol").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-            Text("Then wrap your epoch loop:").font(.caption).foregroundStyle(.secondary)
-            Text("for epoch in epochcontrol.loop(range(200)):")
-                .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(LinearGradient(colors: [Theme.green.opacity(0.9), .teal],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                Image(systemName: "chart.line.downtrend.xyaxis").font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.black.opacity(0.8))
+            }
+            .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("EpochControl").font(.title3.weight(.bold))
+                Text("> training monitor").font(.callout).foregroundStyle(Theme.green)
+            }
+            Spacer()
+            let live = store.live.count
+            Badge(text: live == 0 ? "IDLE" : "\(live) RUNNING", color: live == 0 ? .secondary : Theme.green,
+                  dot: live > 0, large: true)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }
 
-struct RunList: View {
+// MARK: - Runs
+
+struct RunsCard: View {
     let store: RunStore
+    @Binding var expanded: Bool
     let namespace: Namespace.ID
     let animation: Animation
 
     var body: some View {
-        GlassGroup(spacing: 4) {
-            VStack(spacing: 3) {
-                ForEach(store.shown) { run in
-                    let selected = run.id == store.selectedID
-                    Button {
-                        withAnimation(animation) { store.selectedID = run.id }
-                    } label: {
-                        HStack(spacing: 8) {
-                            StatePill(state: run.state, compact: true)
-                            Text(run.name).lineLimit(1)
-                                .fontWeight(selected ? .semibold : .regular)
-                            Spacer()
-                            Text(progressText(run))
-                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                                .contentTransition(.numericText())
+        VStack(alignment: .leading, spacing: 6) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 8) {
+                    HStack(spacing: 3) {
+                        ForEach(store.shown.prefix(6)) { run in
+                            RoundedRectangle(cornerRadius: 2).fill(stateColor(run.state)).frame(width: 9, height: 9)
                         }
-                        .padding(.vertical, 5).padding(.horizontal, 8)
-                        .contentShape(Rectangle())
-                        .selectionHighlight(selected, in: namespace)
                     }
-                    .buttonStyle(.plain)
+                    Text("Runs").font(.headline)
+                    Spacer()
+                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
+                        .rotationEffect(.degrees(expanded ? 0 : -90))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: Theme.badgeRadius))
                 }
+                .contentShape(Rectangle())
             }
-        }
-    }
-}
-
-struct RunCard: View {
-    let run: RunInfo
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(run.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Spacer()
-                StatePill(state: run.state, compact: false)
-            }
-            if let progress = run.progress {
-                Bar(value: progress, color: run.state == .paused ? .orange : .accentColor, height: 6)
-                    .animation(.easeOut(duration: 0.4), value: progress)
-            }
-            HStack {
-                Text(progressText(run)).contentTransition(.numericText())
-                Spacer()
-                if let eta = run.status?.eta_s, run.state == .running {
-                    Text("ETA \(duration(eta))").contentTransition(.numericText())
+            .buttonStyle(.plain)
+            Text(summary).font(.callout).foregroundStyle(Theme.green)
+            if expanded {
+                GlassGroup(spacing: 4) {
+                    VStack(spacing: 2) {
+                        ForEach(store.shown) { run in
+                            RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
+                                withAnimation(animation) { store.selectedID = run.id }
+                            }
+                        }
+                    }
                 }
-            }
-            .font(.caption.monospacedDigit())
-            .animation(.default, value: run.epoch)
-            if let p = run.status?.patience {
-                let share = Double(p.since_best) / Double(max(1, p.limit))
-                HStack(spacing: 6) {
-                    Text("No improvement for \(p.since_best) / \(p.limit)").font(.caption)
-                        .contentTransition(.numericText())
-                    Bar(value: min(1, share), color: share > 0.75 ? .orange : .secondary, height: 4)
-                }
-            }
-            if let best = run.status?.best {
-                Text("Best \(best.monitor ?? "val") \(best.value.formatted(.number.precision(.significantDigits(4)))) at epoch \(best.epoch)")
-                    .font(.caption)
-            }
-            if let t = run.status?.timing {
-                Text("Active \(duration(t.active_s)) · paused \(duration(t.paused_s)) · slept \(duration(t.slept_s))")
-                    .font(.caption2).foregroundStyle(.secondary)
-            }
-            if run.state == .stalled {
-                Text("No heartbeat: the process is alive but not reporting.").font(.caption2).foregroundStyle(.orange)
-            } else if run.state == .lost {
-                Text("The process is gone without finishing.").font(.caption2).foregroundStyle(.red)
-            } else if let error = run.status?.error {
-                Text("\(error.type): \(error.message)").font(.caption2).foregroundStyle(.red).lineLimit(2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(12)
         .card()
     }
-}
 
-struct LossChart: View {
-    let points: [MetricPoint]
-    let best: Best?
-
-    var body: some View {
-        if points.contains(where: { $0.train != nil || $0.val != nil }) {
-            Chart {
-                ForEach(points, id: \.epoch) { p in
-                    if let train = p.train {
-                        LineMark(x: .value("Epoch", p.epoch), y: .value("Loss", train), series: .value("Series", "train"))
-                            .foregroundStyle(by: .value("Series", "train"))
-                            .interpolationMethod(.catmullRom)
-                    }
-                    if let val = p.val {
-                        LineMark(x: .value("Epoch", p.epoch), y: .value("Loss", val), series: .value("Series", "val"))
-                            .foregroundStyle(by: .value("Series", "val"))
-                            .interpolationMethod(.catmullRom)
-                    }
-                }
-                if let best {
-                    RuleMark(x: .value("Best", best.epoch))
-                        .foregroundStyle(.green.opacity(0.6))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                }
-            }
-            .chartForegroundStyleScale(["train": Color.blue, "val": Color.orange])
-            .chartLegend(position: .top, alignment: .leading)
-            .frame(height: 130)
-            .padding(12)
-            .card()
-        }
+    private var summary: String {
+        let live = store.live.count
+        let paused = store.live.filter { $0.state == .paused }.count
+        if live == 0 { return "nothing training" }
+        return paused > 0 ? "\(live) training · \(paused) paused" : "\(live) training"
     }
 }
 
-struct Controls: View {
+struct RunRow: View {
     let run: RunInfo
+    let selected: Bool
+    let namespace: Namespace.ID
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 9) {
+                Circle().fill(stateColor(run.state)).frame(width: 8, height: 8).padding(.top, 5)
+                    .shadow(color: run.state.isLive ? stateColor(run.state).opacity(0.7) : .clear, radius: 3)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 7) {
+                        Text(run.name).font(.callout.weight(.semibold)).lineLimit(1)
+                        Badge(text: run.state.rawValue.uppercased(), color: stateColor(run.state))
+                    }
+                    Text(progressText(run) + (run.total != nil ? " epochs" : ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+                Spacer(minLength: 4)
+                Text(duration(run.status?.timing?.active_s ?? 0))
+                    .font(.caption).foregroundStyle(.secondary).contentTransition(.numericText())
+            }
+            .padding(.vertical, 6).padding(.horizontal, 8)
+            .contentShape(Rectangle())
+            .selectionHighlight(selected, in: namespace)
+        }
+        .buttonStyle(.plain)
+        .animation(.default, value: run.epoch)
+    }
+}
+
+// MARK: - Tiles
+
+struct Tiles: View {
+    let run: RunInfo
+
+    var body: some View {
+        let s = run.status
+        Grid(horizontalSpacing: Theme.gap, verticalSpacing: Theme.gap) {
+            GridRow {
+            Tile(icon: "gauge.with.dots.needle.67percent", title: "Progress", iconColor: Theme.green,
+                 badge: Badge(text: run.state.rawValue.uppercased(), color: stateColor(run.state)),
+                 value: run.progress.map { "\(Int(($0 * 100).rounded()))" } ?? "\(run.epoch)",
+                 unit: run.progress != nil ? "%" : "", side: "Done",
+                 bar: run.progress, barColor: run.state == .paused ? Theme.amber : Theme.green,
+                 lines: [progressText(run) + " epochs",
+                         (s?.eta_s).map { run.state == .running ? "ETA \(duration($0))" : "ETA —" } ?? "ETA —"])
+            Tile(icon: "trophy.fill", title: "Best val", iconColor: Theme.amber,
+                 badge: bestBadge(s), value: s?.best.map { $0.value.formatted(.number.precision(.significantDigits(4))) } ?? "—",
+                 unit: "", side: s?.best.map { "ep \($0.epoch)" } ?? "",
+                 bar: nil, barColor: .clear,
+                 lines: [s?.best.map { "monitor \($0.monitor ?? "val") · \($0.mode ?? "min")" } ?? "no value logged",
+                         "green line on the chart"])
+            }
+            GridRow {
+            patienceTile(s)
+            Tile(icon: "clock.fill", title: "Time", iconColor: Theme.violet,
+                 badge: (s?.timing?.slept_s ?? 0) > 0 ? Badge(text: "SLEPT", color: .secondary) : nil,
+                 value: duration(s?.timing?.active_s ?? 0), unit: "", side: "Active",
+                 bar: nil, barColor: .clear,
+                 lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))",
+                         "wall \(duration(s?.timing?.wall_s ?? 0))"])
+            }
+        }
+        if run.state == .stalled || run.state == .lost || s?.error != nil {
+            Text(run.state == .stalled ? "No heartbeat: the process is alive but not reporting."
+                 : run.state == .lost ? "The process is gone without finishing."
+                 : "\(s!.error!.type): \(s!.error!.message)")
+                .font(.caption).foregroundStyle(run.state == .stalled ? Theme.amber : Theme.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func bestBadge(_ s: Status?) -> Badge? {
+        guard s?.best != nil else { return nil }
+        guard let p = s?.patience else { return nil }
+        return p.since_best == 0 ? Badge(text: "IMPROVING", color: Theme.green) : Badge(text: "PLATEAU", color: Theme.amber)
+    }
+
+    private func patienceTile(_ s: Status?) -> Tile {
+        guard let p = s?.patience else {
+            return Tile(icon: "hourglass", title: "Patience", iconColor: .secondary, badge: nil, value: "—",
+                        unit: "", side: "", bar: nil, barColor: .clear,
+                        lines: ["not set", "start(patience=…)"])
+        }
+        let share = Double(p.since_best) / Double(max(1, p.limit))
+        let (text, color): (String, Color) = share >= 1 ? ("EXCEEDED", Theme.red)
+            : share > 0.75 ? ("NEAR", Theme.amber) : ("OK", Theme.green)
+        return Tile(icon: "hourglass", title: "Patience", iconColor: color, badge: Badge(text: text, color: color),
+                    value: "\(p.since_best)", unit: "/\(p.limit)", side: "Epochs",
+                    bar: min(1, share), barColor: color,
+                    lines: ["since the best epoch",
+                            share >= 1 ? "your script decides to stop" : "\(max(0, p.limit - p.since_best)) epochs left"])
+    }
+}
+
+struct Tile: View {
+    let icon: String
+    let title: String
+    let iconColor: Color
+    let badge: Badge?
+    let value: String
+    let unit: String
+    let side: String
+    let bar: Double?
+    let barColor: Color
+    let lines: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.caption).foregroundStyle(iconColor)
+                    .frame(height: 20) // the badge height, so tiles without a badge line up
+                Text(title.uppercased()).font(.caption).foregroundStyle(.secondary).tracking(0.5)
+                Spacer(minLength: 2)
+                if let badge { badge }
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value).font(.system(size: 26, weight: .bold, design: .monospaced))
+                    .minimumScaleFactor(0.6).lineLimit(1)
+                    .contentTransition(.numericText())
+                Text(unit).font(.callout.weight(.semibold)).foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(side).font(.callout).foregroundStyle(.secondary)
+            }
+            // Every tile keeps the same rows so a row of tiles lines up.
+            Bar(value: bar ?? 0, color: barColor, height: 6)
+                .opacity(bar == nil ? 0 : 1)
+                .animation(.easeOut(duration: 0.4), value: bar)
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(lines, id: \.self) { Text($0) }
+            }
+            .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading) // fill the grid row
+        .card()
+    }
+}
+
+// MARK: - Loss chart
+
+struct LossCard: View {
+    let points: [MetricPoint]
+    let best: Best?
+    @State private var logScale = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Image(systemName: "chart.xyaxis.line").font(.caption).foregroundStyle(.blue)
+                Text("LOSS — EPOCH 0–\(points.last?.epoch ?? 0)").font(.caption).foregroundStyle(.secondary).tracking(0.5)
+                Spacer()
+                if let v = points.last(where: { $0.val != nil })?.val {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(v.formatted(.number.precision(.significantDigits(4))))
+                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .contentTransition(.numericText())
+                        Text("latest val").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            HStack(spacing: 6) {
+                Chip(text: "Linear", on: !logScale) { logScale = false }
+                Chip(text: "Log", on: logScale) { logScale = true }
+            }
+            if points.contains(where: { $0.train != nil || $0.val != nil }) {
+                chart
+            } else {
+                Text("No losses logged yet: use run.log(epoch=…, train=…, val=…)")
+                    .font(.caption).foregroundStyle(.secondary).frame(height: 60)
+            }
+        }
+        .padding(12)
+        .card()
+    }
+
+    /// About four round epoch numbers, leaving room for the green best-epoch label.
+    private var ticks: [Int] {
+        let last = max(1, points.last?.epoch ?? 1)
+        let raw = Double(last) / 4
+        let magnitude = pow(10, floor(log10(max(1, raw))))
+        let step = max(1, Int([1.0, 2, 5, 10].map { $0 * magnitude }.first { $0 >= raw } ?? raw))
+        var values = Array(stride(from: 0, through: last, by: step))
+        if let b = best?.epoch { values.removeAll { abs($0 - b) < max(1, last / 9) } }
+        return values
+    }
+
+    private var chart: some View {
+        Chart {
+            ForEach(points, id: \.epoch) { p in
+                if let train = p.train, !logScale || train > 0 {
+                    LineMark(x: .value("Epoch", p.epoch), y: .value("Loss", train), series: .value("Series", "train"))
+                        .foregroundStyle(by: .value("Series", "train"))
+                        .interpolationMethod(.catmullRom)
+                }
+                if let val = p.val, !logScale || val > 0 {
+                    LineMark(x: .value("Epoch", p.epoch), y: .value("Loss", val), series: .value("Series", "val"))
+                        .foregroundStyle(by: .value("Series", "val"))
+                        .interpolationMethod(.catmullRom)
+                }
+            }
+            if let best {
+                RuleMark(x: .value("Epoch", best.epoch))
+                    .foregroundStyle(by: .value("Series", "best val epoch"))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                PointMark(x: .value("Epoch", best.epoch), y: .value("Loss", best.value))
+                    .foregroundStyle(Theme.green)
+                    .symbolSize(30)
+            }
+        }
+        .chartForegroundStyleScale(["train": Color.blue, "val": Color.orange, "best val epoch": Theme.green])
+        .chartLegend(position: .top, alignment: .leading)
+        .chartYScale(type: logScale ? .log : .linear)
+        .chartXAxis {
+            AxisMarks(values: ticks) { _ in
+                AxisGridLine()
+                AxisValueLabel()
+            }
+            // The best epoch, labelled in green on the axis.
+            AxisMarks(values: best.map { [$0.epoch] } ?? []) { value in
+                AxisValueLabel {
+                    if let e = value.as(Int.self) {
+                        Text("\(e)").font(.caption2.weight(.bold)).foregroundStyle(.black)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Theme.green, in: RoundedRectangle(cornerRadius: Theme.badgeRadius))
+                    }
+                }
+            }
+        }
+        .frame(height: 140)
+    }
+}
+
+// MARK: - Footer
+
+struct FooterBar: View {
+    let run: RunInfo?
     let store: RunStore
     @Binding var confirmStop: Bool
 
     var body: some View {
         GlassGroup(spacing: 8) {
             HStack(spacing: 8) {
-                if run.state == .paused {
-                    Button("Resume", systemImage: "play.fill") { store.send(.resume, to: run) }
-                        .glassButton(prominent: true)
-                } else {
-                    Button("Pause", systemImage: "pause.fill") { store.send(.pause, to: run) }
-                        .glassButton(prominent: true)
+                if let run {
+                    if run.state == .paused {
+                        Button("Resume", systemImage: "play.fill") { store.send(.resume, to: run) }
+                            .glassButton(prominent: true)
+                    } else {
+                        Button("Pause", systemImage: "pause.fill") { store.send(.pause, to: run) }
+                            .glassButton(prominent: true)
+                            .disabled(!run.state.canControl)
+                    }
+                    Button("Stop", systemImage: "stop.fill", role: .destructive) { confirmStop = true }
+                        .glassButton(tint: Theme.red)
                         .disabled(!run.state.canControl)
                 }
-                Button("Stop", systemImage: "stop.fill", role: .destructive) { confirmStop = true }
-                    .glassButton(tint: .red)
-                    .disabled(!run.state.canControl)
                 Spacer()
-                Button("Open folder", systemImage: "folder") { NSWorkspace.shared.open(run.dir) }
-                    .glassButton()
-                    .labelStyle(.iconOnly)
-                    .help("Open the run folder")
+                if let run {
+                    Button("Open folder", systemImage: "folder.fill") { NSWorkspace.shared.open(run.dir) }
+                        .glassButton().labelStyle(.iconOnly).help("Open the run folder")
+                }
+                Button("Quit", systemImage: "xmark") { NSApplication.shared.terminate(nil) }
+                    .glassButton().labelStyle(.iconOnly).help("Quit EpochControl (runs keep going)")
             }
+            .controlSize(.large)
         }
-        .animation(.snappy, value: run.state)
-        .alert("Stop \(run.name)?", isPresented: $confirmStop) {
-            Button("Stop", role: .destructive) { store.send(.stop, to: run) }
+        .animation(.snappy, value: run?.state)
+        .alert("Stop \(run?.name ?? "")?", isPresented: $confirmStop) {
+            Button("Stop", role: .destructive) { if let run { store.send(.stop, to: run) } }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("It stops at the end of the current epoch and saves a checkpoint if the script registered one.")
@@ -229,33 +421,57 @@ struct Controls: View {
     }
 }
 
-struct StatePill: View {
-    let state: RunState
-    let compact: Bool
+// MARK: - Small parts
 
-    var color: Color {
-        switch state {
-        case .running, .starting: .blue
-        case .paused, .stopping, .stalled: .orange
-        case .finished: .green
-        case .failed, .lost: .red
-        case .stopped: .secondary
+struct EmptyState: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("No runs yet").font(.headline)
+            Text("> install the package in your training environment").font(.caption).foregroundStyle(Theme.green)
+            Text("pip install epochcontrol").font(.callout).textSelection(.enabled)
+            Text("> wrap your epoch loop").font(.caption).foregroundStyle(Theme.green)
+            Text("for epoch in epochcontrol.loop(range(200)):").font(.caption).textSelection(.enabled)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
+}
+
+struct Badge: View {
+    let text: String
+    let color: Color
+    var dot = false
+    var large = false
 
     var body: some View {
-        if compact {
-            Circle().fill(color).frame(width: 7, height: 7)
-                .shadow(color: state.isLive ? color.opacity(0.6) : .clear, radius: 3)
-        } else {
-            Text(state.rawValue.uppercased())
-                .font(.caption2.weight(.bold))
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .foregroundStyle(color)
-                .background(color.opacity(0.15), in: Capsule())
-                .contentTransition(.interpolate)
-                .animation(.snappy, value: state)
+        HStack(spacing: 5) {
+            if dot { Circle().fill(color).frame(width: 7, height: 7) }
+            Text(text).font((large ? Font.callout : .caption2).weight(.bold))
         }
+        .padding(.horizontal, large ? 10 : 6).padding(.vertical, large ? 5 : 2)
+        .foregroundStyle(color == .secondary ? Color.secondary : .black.opacity(0.85))
+        .background(color == .secondary ? AnyShapeStyle(.quaternary) : AnyShapeStyle(color),
+                    in: RoundedRectangle(cornerRadius: large ? Theme.radius : Theme.badgeRadius))
+        .contentTransition(.interpolate)
+    }
+}
+
+struct Chip: View {
+    let text: String
+    let on: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text).font(.caption.weight(on ? .bold : .regular))
+                .padding(.horizontal, 10).padding(.vertical, 3)
+                .foregroundStyle(on ? Color.primary : .secondary)
+                .background(on ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                            in: RoundedRectangle(cornerRadius: Theme.badgeRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.badgeRadius).strokeBorder(.quaternary))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -273,6 +489,16 @@ struct Bar: View {
             }
         }
         .frame(height: height)
+    }
+}
+
+func stateColor(_ state: RunState) -> Color {
+    switch state {
+    case .running, .starting: Theme.green
+    case .paused, .stopping, .stalled: Theme.amber
+    case .finished: .blue
+    case .failed, .lost: Theme.red
+    case .stopped: .secondary
     }
 }
 
@@ -298,13 +524,14 @@ struct GlassGroup<Content: View>: View {
 }
 
 extension View {
-    /// A card: Liquid Glass on macOS 26+, a material before.
+    /// A card: Liquid Glass on macOS 26+, a material before. Same radius everywhere.
     @ViewBuilder
-    func card(cornerRadius: CGFloat = 14) -> some View {
+    func card() -> some View {
         if #available(macOS 26.0, *), Glass.on {
-            glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+            glassEffect(.regular, in: .rect(cornerRadius: Theme.radius))
         } else {
-            background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).strokeBorder(.quaternary))
         }
     }
 
@@ -314,7 +541,7 @@ extension View {
     func selectionHighlight(_ selected: Bool, in namespace: Namespace.ID) -> some View {
         if #available(macOS 26.0, *), Glass.on {
             if selected {
-                glassEffect(.regular.tint(.accentColor.opacity(0.35)).interactive(), in: .rect(cornerRadius: 9))
+                glassEffect(.regular.tint(Theme.green.opacity(0.28)).interactive(), in: .rect(cornerRadius: Theme.radius))
                     .glassEffectID("selection", in: namespace)
             } else {
                 self
@@ -322,7 +549,7 @@ extension View {
         } else {
             background {
                 if selected {
-                    RoundedRectangle(cornerRadius: 7).fill(Color.accentColor.opacity(0.18))
+                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).fill(Theme.green.opacity(0.16))
                         .matchedGeometryEffect(id: "selection", in: namespace)
                 }
             }
@@ -331,16 +558,21 @@ extension View {
 
     @ViewBuilder
     func glassButton(prominent: Bool = false, tint: Color? = nil) -> some View {
+        let shape = ButtonBorderShape.roundedRectangle(radius: Theme.radius)
         if #available(macOS 26.0, *), Glass.on {
             if prominent {
-                buttonStyle(.glassProminent)
+                buttonStyle(.glassProminent).buttonBorderShape(shape).tint(Theme.green)
             } else if let tint {
-                buttonStyle(.glass).tint(tint)
+                buttonStyle(.glass).buttonBorderShape(shape).tint(tint)
             } else {
-                buttonStyle(.glass)
+                buttonStyle(.glass).buttonBorderShape(shape)
             }
         } else {
-            if prominent { buttonStyle(.borderedProminent) } else { buttonStyle(.bordered).tint(tint) }
+            if prominent {
+                buttonStyle(.borderedProminent).buttonBorderShape(shape).tint(Theme.green)
+            } else {
+                buttonStyle(.bordered).buttonBorderShape(shape).tint(tint)
+            }
         }
     }
 }
