@@ -1,0 +1,27 @@
+name: release-python
+# Publishes the Python package to PyPI when a tag like py-v0.1.0 is pushed.
+# Trusted publishing: no token is stored; PyPI trusts this workflow (set up once on pypi.org).
+on:
+  push:
+    tags: ["py-v*"]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # proves to PyPI that this run comes from this repo and workflow
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --python 3.14 pytest -q
+      - name: Check the tag matches the package version
+        run: |
+          v=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          [ "py-v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but version $v"; exit 1; }
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist

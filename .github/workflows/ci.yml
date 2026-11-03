@@ -1,0 +1,27 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.10" }
+          - { os: ubuntu-latest, python: "3.14" }
+          - { os: macos-latest, python: "3.14" }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --python ${{ matrix.python }} pytest -q
+  macos-app:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: macos
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
