@@ -11,6 +11,7 @@ app and the ``epochcontrol`` CLI read them and send pause, resume and stop comma
 """
 
 from ._loop import loop
+from ._run import Run, start
 
 __version__ = "0.1.0.dev0"
-__all__ = ["loop", "__version__"]
+__all__ = ["loop", "start", "Run", "__version__"]

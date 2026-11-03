@@ -18,6 +18,9 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 
+[project.scripts]
+epochcontrol = "epochcontrol._cli:main"
+
 [project.optional-dependencies]
 psutil = ["psutil"]
 
@@ -29,3 +32,4 @@ packages = ["epochcontrol"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+faulthandler_timeout = 60  # a hung test prints its stack instead of hanging silently

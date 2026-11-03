@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/catalystdream/epochcontrol/schemas/cli.schema.json",
+  "title": "epochcontrol CLI --json output",
+  "description": "Stable output of `epochcontrol ls --json` (array of run), `status --json` (run) and `pause|resume|stop --json` (command_result) (PRD AG7).",
+  "$defs": {
+    "run": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "starting",
+            "running",
+            "paused",
+            "stopping",
+            "stopped",
+            "finished",
+            "failed",
+            "stalled",
+            "lost"
+          ],
+          "description": "As in status.json, except stalled (stale heartbeat, process alive) and lost (process gone), which only readers derive (PRD §11)."
+        },
+        "epoch": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "total_epochs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "best": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "patience": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "timing": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "eta_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "heartbeat_age_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "name",
+        "state",
+        "epoch",
+        "total_epochs",
+        "timing",
+        "eta_s",
+        "heartbeat_age_s",
+        "dir"
+      ],
+      "additionalProperties": false
+    },
+    "command_result": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "command": {
+          "enum": [
+            "pause",
+            "resume",
+            "stop"
+          ]
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "applied": {
+          "type": "boolean",
+          "description": "True once the run acknowledged the command (status.json last_seq), within the wait time."
+        }
+      },
+      "required": [
+        "run_id",
+        "command",
+        "seq",
+        "applied"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "not_found",
+            "refused",
+            "ambiguous"
+          ]
+        }
+      },
+      "required": [
+        "error",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    {
+      "$ref": "#/$defs/run"
+    },
+    {
+      "$ref": "#/$defs/command_result"
+    },
+    {
+      "$ref": "#/$defs/error"
+    }
+  ]
+}
