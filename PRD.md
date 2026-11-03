@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Reviewed by Harrish. Open: D3 (not needed until v1.0) |
-| **Version** | 0.5, 2 November 2026 (renamed from EpochBar; `loop()` and tqdm subclass added) |
+| **Version** | 0.6, 3 November 2026 (Liquid Glass and animation added) |
 | **Owner** | Harrish Joseph |
 | **Type** | Open-source project: a Python package and a macOS app |
 | **Related** | `plan.md` (design notes, 30 October 2026) |
@@ -285,6 +285,8 @@ run.finish()
 | APP21 | Optional alerts: plateau (patience above a set share), queue finished | P1 | |
 | APP22 | Settings: runs folder, menu text, refresh rate, notifications, default pause mode, launch at login, retention | P1 | |
 | APP23 | Works in light and dark mode | P1 | Snapshot test of both |
+| APP24 | **Liquid Glass on macOS 26 and later** (Harrish, 3 Nov): cards, the run selection and the buttons use the system glass (`glassEffect`, `GlassEffectContainer`, glass button styles). macOS 14–25 get the same layout with materials | P0 | Looks native on macOS 27; still works on macOS 14 |
+| APP25 | **Animated selection** (Harrish, 3 Nov): the highlight moves to the chosen run (glass morph on 26+, sliding highlight before), the run card swaps with a blur-fade, changing numbers roll | P0 | Switching runs is smooth, never a jump; respects Reduce Motion |
 
 ---
 
@@ -384,7 +386,7 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 | **Python package** | PyPI, published from GitHub Actions with trusted publishing |
 | **App, before v1.0** | Unsigned builds on GitHub Releases, or build from source |
 | **App, v1.0** | Developer ID signed and notarized DMG, Homebrew cask, updates through Sparkle 2 |
-| **App tech** | Swift 6 and SwiftUI, `MenuBarExtra`, Swift Charts, no third-party dependencies except Sparkle |
+| **App tech** | Swift 6 and SwiftUI, `MenuBarExtra`, Swift Charts, Liquid Glass on macOS 26+ with a material fallback, no third-party dependencies except Sparkle |
 
 | Release | Contents | Done when |
 |---|---|---|
