@@ -11,3 +11,7 @@ build/
 DerivedData/
 xcuserdata/
 *.xcuserstate
+
+# virtual environments: *.nosync keeps iCloud from syncing them (see CLAUDE.md)
+.venv*/
+*.nosync/

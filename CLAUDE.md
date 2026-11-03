@@ -15,5 +15,11 @@ Python package + macOS menu-bar app for monitoring and controlling training runs
 ## Layout
 `python/` package · `macos/` Xcode project · `schemas/` JSON Schemas · `examples/` · `docs/`
 
+## Running the tests
+```bash
+cd python && UV_PROJECT_ENVIRONMENT=.venv.nosync uv run pytest -q
+```
+The repo sits in `~/Documents`, which iCloud syncs. iCloud marks files in a plain `.venv` hidden, and Python 3.13+ then ignores the editable install's `.pth` file ("No module named epochcontrol"). A folder ending in `.nosync` is not synced.
+
 ## Order of work
 v0.1 Python only, then v0.2 app, as in PRD §12. Write the test first.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/catalystdream/epochcontrol/schemas/events.schema.json",
   "title": "events.jsonl line",
-  "description": "One line per state change, append only. Used for the timeline.",
+  "description": "One line per state change, append only. Used for the timeline. A command event records each command applied and who sent it (PRD AG13).",
   "type": "object",
   "properties": {
     "t": {
@@ -13,6 +13,7 @@
         "started",
         "paused",
         "resumed",
+        "command",
         "slept",
         "os_frozen",
         "checkpoint_saved",
@@ -36,7 +37,8 @@
       "description": "For slept and os_frozen: how long."
     },
     "detail": {
-      "type": "string"
+      "type": "string",
+      "description": "For command: which command (pause, resume, stop)."
     }
   },
   "required": [

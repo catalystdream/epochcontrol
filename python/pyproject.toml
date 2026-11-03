@@ -4,18 +4,28 @@ build-backend = "hatchling.build"
 
 [project]
 name = "epochcontrol"
-version = "0.0.1"
-description = "See and control your training runs from the Mac menu bar. Early development."
+version = "0.1.0.dev0"
+description = "See and control your training runs from the Mac menu bar."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "Harrish Joseph" }]
+dependencies = []
 classifiers = [
-  "Development Status :: 1 - Planning",
+  "Development Status :: 2 - Pre-Alpha",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Programming Language :: Python :: 3",
 ]
 
+[project.optional-dependencies]
+psutil = ["psutil"]
+
+[dependency-groups]
+dev = ["pytest>=8", "jsonschema>=4.18", "rfc3339-validator"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["epochcontrol"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
