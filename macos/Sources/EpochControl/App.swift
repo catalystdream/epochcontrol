@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import EpochControlKit
 import SwiftUI
 
@@ -37,11 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateIcon()
         store.onRefresh = { [weak self] in self?.updateIcon() }
 
-        let host = NSHostingController(rootView: PopoverView(store: store))
-        host.sizingOptions = [.preferredContentSize] // the popover follows the content's height
+        // Content pinned to the top: while the window shrinks, the bottom is what disappears.
+        let host = NSHostingController(rootView: PopoverView(store: store)
+            .frame(maxHeight: .infinity, alignment: .top))
+        host.sizingOptions = [] // the popover size is set here, in step with the content
         popover.contentViewController = host
         popover.behavior = .transient // closes when you click elsewhere
         popover.animates = true
+        store.onHeight = { [weak self] height in self?.resize(to: height) }
     }
 
     @objc private func toggle(_ sender: Any?) {
@@ -49,9 +53,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            // Lay the content out first, so the popover opens at the right height.
+            popover.contentViewController?.view.layoutSubtreeIfNeeded()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
             store.markSeen()
+        }
+    }
+
+    /// Resize with the same duration and curve as the SwiftUI animation (Motion.resize).
+    private func resize(to height: CGFloat) {
+        let size = NSSize(width: 430, height: ceil(height))
+        guard popover.contentSize != size else { return }
+        if !popover.isShown {
+            popover.contentSize = size
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Motion.resizeDuration
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1)
+            context.allowsImplicitAnimation = true
+            popover.contentSize = size
         }
     }
 

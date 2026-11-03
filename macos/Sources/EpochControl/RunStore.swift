@@ -17,6 +17,9 @@ final class RunStore {
     private var task: Task<Void, Never>?
     /// Called after every refresh, e.g. to redraw the menu-bar icon.
     @ObservationIgnored var onRefresh: (() -> Void)?
+    /// Height the popover content needs; set by the view, followed by the popover.
+    @ObservationIgnored var contentHeight: CGFloat = 0 { didSet { if contentHeight != oldValue { onHeight?(contentHeight) } } }
+    @ObservationIgnored var onHeight: ((CGFloat) -> Void)?
 
     init(root: URL = Files.runsDirectory(), autoRefresh: Bool = true) {
         self.root = root

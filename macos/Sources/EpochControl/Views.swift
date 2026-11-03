@@ -8,6 +8,12 @@ import SwiftUI
 // (PRD APP24). Selection moves with a spring; the details swap with a blur-fade; numbers
 // roll (PRD APP25). Reduce Motion turns the movement into plain fades.
 
+/// One curve for content and window size, so they move as one (popover resize).
+enum Motion {
+    static let resizeDuration: Double = 0.28
+    static let resize = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: resizeDuration) // CSS "ease"
+}
+
 enum Theme {
     static let radius: CGFloat = 12      // cards, rows, tiles, buttons: the same everywhere
     static let badgeRadius: CGFloat = 6
@@ -53,8 +59,12 @@ struct PopoverView: View {
         .fontDesign(.monospaced)
         .padding(14)
         .frame(width: 430)
+        .fixedSize(horizontal: false, vertical: true)
+        // Report the final height at once: the popover then resizes with the same curve as
+        // the content (AppDelegate), so the window and the content move together.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { store.contentHeight = $0 }
+        .focusEffectDisabled() // no keyboard-focus ring on the first button
         .animation(animation, value: store.selectedID)
-        .animation(animation, value: runsExpanded)
         .onAppear { store.markSeen() }
     }
 
@@ -99,7 +109,9 @@ struct RunsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button { expanded.toggle() } label: {
+            Button {
+                withAnimation(Motion.resize) { expanded.toggle() }
+            } label: {
                 HStack(spacing: 8) {
                     HStack(spacing: 3) {
                         ForEach(store.shown.prefix(6)) { run in
@@ -127,11 +139,12 @@ struct RunsCard: View {
                         }
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity) // rows fade while the card below slides up with the window
             }
         }
         .padding(12)
         .card()
+        .clipped()
     }
 
     private var summary: String {
