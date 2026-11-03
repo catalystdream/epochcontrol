@@ -3,6 +3,12 @@ from pathlib import Path
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _no_app(monkeypatch):
+    """Tests never start the Mac app."""
+    monkeypatch.setenv("EPOCHCONTROL_NO_APP", "1")
+
 SCHEMAS = Path(__file__).resolve().parents[2] / "schemas"
 
 

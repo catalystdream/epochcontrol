@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from . import _io, _proc
+from . import _app, _io, _proc
 from ._clock import SystemClock
 from ._paths import runs_dir
 from ._timing import Timer
@@ -46,7 +46,8 @@ class Run:
     def __init__(self, name: str, total: int | None = None, *, source: str = "library",
                  patience: int | None = None, monitor: str = "val", mode: str = "min",
                  run_dir: str | os.PathLike | None = None, tags: list[str] | None = None,
-                 checkpoint_on_pause: bool = True, stop_on_patience: bool = False, clock=None, home: Path | None = None,
+                 checkpoint_on_pause: bool = True, stop_on_patience: bool = False,
+                 open_app: bool = True, clock=None, home: Path | None = None,
                  heartbeat: bool = True, heartbeat_s: float = HEARTBEAT_S, poll_s: float = POLL_S):
         from . import __version__
 
@@ -99,6 +100,8 @@ class Run:
         self.event("started")
         self.write_status()
         _active.add(self)
+        if open_app and self._ok:
+            _app.open_app()  # show the run in the menu bar (PRD LIB13)
         if heartbeat and self._ok:
             self._beat = threading.Thread(target=self._beat_loop, args=(heartbeat_s,),
                                           name="epochcontrol-heartbeat", daemon=True)
@@ -372,7 +375,8 @@ def start(name: str | None = None, total_epochs: int | None = None, **options) -
     ``run_dir`` (your own output folder, shown in the app), ``tags``,
     ``checkpoint_on_pause`` (default True), ``stop_on_patience`` (default False: when
     True, the run ends once ``patience`` epochs pass without a better ``monitor`` value,
-    saving the checkpoint first, as on Stop).
+    saving the checkpoint first, as on Stop), ``open_app`` (default True: start the Mac
+    menu-bar app if it is not running; ``EPOCHCONTROL_NO_APP=1`` turns this off everywhere).
     """
     if name is None:
         name = Path(sys.argv[0]).stem if sys.argv and sys.argv[0] else "run"

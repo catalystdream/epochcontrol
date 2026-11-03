@@ -180,6 +180,7 @@ run.finish()
 | LIB5 | Tracks best value, best epoch and patience count | P0 | Correct for min and max modes |
 | LIB6 | Calculates ETA from active time only | P0 | ETA does not jump after a sleep or pause |
 | LIB12 | `stop_on_patience=True` in `start()` (Harrish, 3 Nov): after `patience` epochs without a better `monitor` value the run saves its checkpoint and ends as finished, the reason in the event log. Off by default: patience otherwise only reports | P0 | Test: ends at the right epoch, checkpoint saved, state finished |
+| LIB13 | A run opens the Mac app (Harrish, 3 Nov: instead of a login item): `open -g` in the background, once per process, only on a Mac with a screen session (not over SSH); errors and a missing app are ignored; `open_app=False` or `EPOCHCONTROL_NO_APP=1` turns it off | P0 | Closed app opens when a run starts; a failure never stops the run |
 | LIB7 | `run.step()` for progress inside long epochs, limited to about 4 writes a second | P1 | Calling it on every batch adds no measurable slowdown |
 | LIB8 | Context manager form, `with epochcontrol.start(...) as run:` | P1 | An exception inside marks the run `failed` |
 | LIB9 | An uncaught exception marks the run `failed` and records the error | P0 | Test raises in the loop and checks the state |

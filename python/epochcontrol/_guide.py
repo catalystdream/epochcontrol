@@ -27,6 +27,8 @@ Wrap the OUTER loop (epochs), not the batch loop. Pause and stop act between ite
         run.log(epoch=epoch, train=train_loss, val=val_loss, lr=current_lr)
     run.finish()
 
+The Mac menu-bar app opens by itself when a run starts (off: `open_app=False`, or
+EPOCHCONTROL_NO_APP=1 for all runs).
 Early stopping: add `stop_on_patience=True` to start(); the run then ends after `patience`
 epochs without a better `monitor` value (checkpoint saved first). Off by default.
 Or use `with epochcontrol.start(...) as run:`; an exception then marks the run failed.
