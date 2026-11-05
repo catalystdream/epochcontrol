@@ -374,9 +374,19 @@ struct LossCard: View {
                 }
             }
             if let best {
+                // The best epoch, labelled in green on the axis row. An annotation, not an axis
+                // label: axis labels are cut to "…" or dropped near the chart's edges, while
+                // `.fit(to: .chart)` slides this one back inside.
                 RuleMark(x: .value("Epoch", best.epoch))
                     .foregroundStyle(by: .value("Series", "best val epoch"))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    .annotation(position: .bottom, spacing: 3,
+                                overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                        Text("\(best.epoch)").font(.caption2.weight(.bold)).foregroundStyle(.black)
+                            .fixedSize()
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Theme.green, in: RoundedRectangle(cornerRadius: Theme.badgeRadius))
+                    }
                 PointMark(x: .value("Epoch", best.epoch), y: .value("Loss", best.value))
                     .foregroundStyle(Theme.green)
                     .symbolSize(30)
@@ -389,16 +399,6 @@ struct LossCard: View {
             AxisMarks(values: ticks) { _ in
                 AxisGridLine()
                 AxisValueLabel()
-            }
-            // The best epoch, labelled in green on the axis.
-            AxisMarks(values: best.map { [$0.epoch] } ?? []) { value in
-                AxisValueLabel {
-                    if let e = value.as(Int.self) {
-                        Text("\(e)").font(.caption2.weight(.bold)).foregroundStyle(.black)
-                            .padding(.horizontal, 4).padding(.vertical, 1)
-                            .background(Theme.green, in: RoundedRectangle(cornerRadius: Theme.badgeRadius))
-                    }
-                }
             }
         }
         .frame(height: LossCard.chartHeight)
