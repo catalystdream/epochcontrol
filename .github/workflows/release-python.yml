@@ -10,6 +10,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write   # proves to PyPI that this run comes from this repo and workflow
+      contents: read    # listing permissions drops the rest; checkout of a private repo needs this
     defaults:
       run:
         working-directory: python
