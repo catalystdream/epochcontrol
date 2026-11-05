@@ -24,8 +24,9 @@ def console_is_mine() -> bool:
         return False
 
 
-def should_open(environ=os.environ, platform: str = sys.platform, console_mine=console_is_mine) -> bool:
-    if platform != "darwin":
+def should_open(environ=os.environ, platform: str | None = None, console_mine=console_is_mine) -> bool:
+    # Read at call time: a `sys.platform` default would be fixed at import.
+    if (sys.platform if platform is None else platform) != "darwin":
         return False
     if environ.get("EPOCHCONTROL_NO_APP"):
         return False
