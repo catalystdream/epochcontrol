@@ -12,11 +12,15 @@ license = "MIT"
 authors = [{ name = "Harrish Joseph" }]
 dependencies = []
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Programming Language :: Python :: 3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/catalystdream/epochcontrol"
+Repository = "https://github.com/catalystdream/epochcontrol"
 
 [project.scripts]
 epochcontrol = "epochcontrol._cli:main"

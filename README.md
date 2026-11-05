@@ -4,7 +4,7 @@ See and control your training runs from the Mac menu bar.
 
 A Python package plus a native macOS app: progress, losses and honest timing at a glance, with pause, resume and stop for a running job. Local, no account. Not an experiment tracker; it sits next to W&B, TensorBoard or trackio.
 
-<!-- TODO screenshot: docs/screenshot.png (popover with a running run, Loss card visible) -->
+<p align="center"><img src="docs/screenshot.png" alt="EpochControl menu-bar popover: run list, progress, patience, best validation loss, timing with slept time, loss chart" width="320"></p>
 
 ## Why
 
