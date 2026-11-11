@@ -81,9 +81,13 @@ public struct MetricPoint: Sendable, Equatable {
 
 /// What a run is, as shown. `stalled` and `lost` are worked out here, never written by
 /// the package (PRD §11).
+/// `offline` is a remote run whose machine cannot be reached: the last known state is kept
+/// (PRD REM6), and it is never shown as lost or stalled.
 public enum RunState: String, Sendable, CaseIterable {
-    case starting, running, paused, stopping, stopped, finished, failed, stalled, lost
+    case starting, running, paused, stopping, stopped, finished, failed, stalled, lost, offline
 
+    /// The states the package writes; the others are worked out by the reader.
+    public static let written: Set<RunState> = [.starting, .running, .paused, .stopping, .stopped, .finished, .failed]
     public var isLive: Bool { [.starting, .running, .paused, .stopping].contains(self) }
     public var canControl: Bool { [.starting, .running, .paused].contains(self) }
 }

@@ -275,22 +275,31 @@ run.finish()
 | APP14 | Open run folder, copy command | P1 | |
 | APP15 | Queue card showing finished, running and waiting jobs | P1 | |
 
-### Remote runs (v0.4)
+### Remote runs (v0.2.x, moved ahead of v0.3 on 11 Nov)
 
 Runs on another machine (the DGX Spark, atlas, a cloud box) shown in the same menu bar. The
-package on that machine is unchanged; the app reaches it over SSH (Tailscale) and uses the
-CLI's `--json` output, so no server or open port is needed.
+package on that machine is unchanged; the app reaches it over SSH (Tailscale), so no server
+or open port is needed.
+
+**Changed 11 Nov (Harrish):** the app no longer calls `epochcontrol` on the remote machine.
+Installing the CLI there meant fixing PATH and the virtual environment for non-interactive
+SSH, too many steps. Instead the app ships a small reader (Python standard library only) and
+sends it over SSH as `python3 -` on every poll. The remote machine needs only `python3`, the
+package in the training environment, and an SSH login that does not prompt. The reader reads
+the run folders the same way the app reads local ones, and it is versioned with the app, so
+the two never disagree. Its reply is internal to the app (not a `schemas/` contract); the run
+folder files it reads are.
 
 | ID | Requirement | Pri | Accepted when |
 |---|---|---|---|
 | REM1 | Settings: a list of hosts as SSH names (`spark`, `atlas`), using the user's own SSH config and keys | P1 | A host added in settings appears in the run list |
-| REM2 | Every few seconds (default 5) the app runs `ssh <host> epochcontrol ls --json` in the background, with BatchMode and a short connect timeout; the UI never waits on it | P1 | A slow or dead host never freezes the popover |
+| REM2 | Every few seconds (default 5) the app runs `ssh <host> python3 -` with the bundled reader on stdin, in the background, with BatchMode and a short connect timeout; the UI never waits on it. Liveness (pid + start time) and heartbeat age are worked out on the remote machine, so clock differences between machines do not matter | P1 | A slow or dead host never freezes the popover |
 | REM3 | Remote runs appear with a host label (e.g. "spark · tft lumo") next to local ones | P1 | Local and remote runs are told apart at a glance |
-| REM4 | Pause, Resume and Stop run `ssh <host> epochcontrol pause|resume|stop <run> --by app --json`; the result's `applied` is shown | P1 | A remote run is paused and resumed from the Mac |
-| REM5 | `epochcontrol metrics <run> --json [--since EPOCH]` on the package side, so the chart loads only new points for the selected remote run | P1 | The chart of a remote run updates without re-reading everything |
+| REM4 | Pause, Resume and Stop send the same reader with a command: it writes `control.json` on the remote machine exactly as the app does locally (next `seq`, atomic, `by: app`, cooperative) | P1 | A remote run is paused and resumed from the Mac |
+| REM5 | Each poll asks only for the `metrics.jsonl` bytes after the last offset it has, so the chart of a remote run updates without re-reading everything | P1 | The chart of a remote run updates without re-reading everything |
 | REM6 | An unreachable host shows its runs as **offline** (last known state, greyed), never as lost or stalled | P1 | Mac off Tailscale: runs show offline, not lost |
 | REM7 | Opening the app on the remote side is never attempted; LIB13 stays local | P1 | No `open` call on Linux or over SSH without a screen session |
-| REM8 | Nothing secret leaves the remote machine beyond the status the CLI already prints (no command lines unless `record_command=True`) | P1 | Review of the JSON fields |
+| REM8 | Nothing secret leaves the remote machine beyond the run folder's status, meta and metrics (no command lines unless `record_command=True`); host names are checked before they reach `ssh` | P1 | Review of the JSON fields |
 
 ### Behaviour
 
@@ -412,7 +421,8 @@ A stuck training step with a live heartbeat is a separate case: the heartbeat th
 | **v0.1, Python only** | Repo with `CLAUDE.md`, schemas, CI, LIB and CTL P0s, timing, CLI with `--json`, `agent-guide`, `llms.txt` | A real MPS run is paused, resumed and stopped from the CLI, and timing survives a lid close |
 | **v0.2, app MVP** | All APP P0s | One week of real overnight runs monitored from the menu bar |
 | **v0.3, complete** | Notifications, settings, launch at login, OS-level control, queue, `wrap`, tqdm subclass, `epochcontrol app`, `setup-agent`, `check`, `wait` | Scenario S3 passes on a real crash |
-| **v0.4, frameworks and remote runs** | Lightning, Keras, Hugging Face, JAX; runs on other machines over SSH (REM1–REM8, moved from v2 on 3 Nov) | Examples run in CI; a DGX Spark run is watched, paused and stopped from the Mac menu bar |
+| **v0.2.x, remote runs** | Runs on other machines over SSH (REM1–REM8; moved from v2 on 3 Nov, then ahead of v0.3 on 11 Nov) | A DGX Spark run is watched, paused and stopped from the Mac menu bar |
+| **v0.4, frameworks** | Lightning, Keras, Hugging Face, JAX | Examples run in CI |
 | **v1.0, public** | Signed app, Homebrew, docs, README GIF | A fresh Mac installs through brew with no security prompts |
 | **v2** | GPU and power readings, iPhone widget, MCP server if needed | |
 
@@ -452,7 +462,7 @@ Write your answer in the last column. Proposals are mine.
 | D6 | Swift version | Swift 6 | **Changed from `plan.md`** (5.10+): your Mac has Swift 6.4 and Xcode 27 |ok |
 | D7 | Default pause mode | Cooperative | Safest, and allows a checkpoint. OS-level stays opt-in until R1 is tested |ok |
 | D8 | Queue in v1.0? | Yes, but as its own release (v0.3) | It solves a real problem, but must not delay the core | Yes, v0.3 |
-| D9 | Remote runs in v2 | Keep in v2 | You run on the DGX Spark too, so tell me if this matters sooner. The file format already allows it |ok · **changed 3 Nov: moved to v0.4** (REM1–REM8) |
+| D9 | Remote runs in v2 | Keep in v2 | You run on the DGX Spark too, so tell me if this matters sooner. The file format already allows it |ok · **changed 3 Nov: moved to v0.4** (REM1–REM8) · **changed 11 Nov: built now, before v0.3**, with an app-shipped reader instead of the CLI on the remote machine (fewer setup steps) |
 | D10 | Licence | MIT | Common and simple for a tool like this | ok|
 | D11 | Release before v1.0 to the public? | Yes, publish v0.1 on PyPI early | Early feedback, and it reserves the name | ok|
 | D12 | Start date | After the paper revision | Your main job at the moment |side by side |

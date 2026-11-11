@@ -28,12 +28,14 @@ struct PopoverView: View {
     let store: RunStore
     @State private var confirmStop = false
     @State private var runsExpanded = true
+    @State private var showHosts = false
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.gap) {
             Header(store: store)
+            if showHosts { HostsCard(store: store) }
             if store.runs.isEmpty {
                 EmptyState()
             } else {
@@ -49,12 +51,12 @@ struct PopoverView: View {
                     if let error = store.lastError {
                         Text(error).font(.caption).foregroundStyle(Theme.red)
                     }
-                    FooterBar(run: run, store: store, confirmStop: $confirmStop)
+                    FooterBar(run: run, store: store, confirmStop: $confirmStop, showHosts: $showHosts)
                 } else {
-                    FooterBar(run: nil, store: store, confirmStop: $confirmStop)
+                    FooterBar(run: nil, store: store, confirmStop: $confirmStop, showHosts: $showHosts)
                 }
             }
-            if store.runs.isEmpty { FooterBar(run: nil, store: store, confirmStop: $confirmStop) }
+            if store.runs.isEmpty { FooterBar(run: nil, store: store, confirmStop: $confirmStop, showHosts: $showHosts) }
         }
         .fontDesign(.monospaced)
         .padding(14)
@@ -175,7 +177,7 @@ struct RunRow: View {
                     .shadow(color: run.state.isLive ? stateColor(run.state).opacity(0.7) : .clear, radius: 3)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 7) {
-                        Text(run.name).font(.callout.weight(.semibold)).lineLimit(1)
+                        Text(run.label).font(.callout.weight(.semibold)).lineLimit(1)
                         Badge(text: run.state.rawValue.uppercased(), color: stateColor(run.state))
                     }
                     Text(progressText(run) + (run.total != nil ? " epochs" : ""))
@@ -226,11 +228,13 @@ struct Tiles: View {
                      lines: ["paused \(duration(s?.timing?.paused_s ?? 0)) · slept \(duration(s?.timing?.slept_s ?? 0))"])
             }
         }
-        if run.state == .stalled || run.state == .lost || s?.error != nil {
-            Text(run.state == .stalled ? "No heartbeat: the process is alive but not reporting."
+        if run.state == .stalled || run.state == .lost || run.state == .offline || s?.error != nil {
+            Text(run.state == .offline ? "Can't reach \(run.host ?? "the host"): showing the last known state."
+                 : run.state == .stalled ? "No heartbeat: the process is alive but not reporting."
                  : run.state == .lost ? "The process is gone without finishing."
                  : "\(s!.error!.type): \(s!.error!.message)")
-                .font(.caption).foregroundStyle(run.state == .stalled ? Theme.amber : Theme.red)
+                .font(.caption)
+                .foregroundStyle(run.state == .offline ? Color.secondary : run.state == .stalled ? Theme.amber : Theme.red)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -411,6 +415,7 @@ struct FooterBar: View {
     let run: RunInfo?
     let store: RunStore
     @Binding var confirmStop: Bool
+    @Binding var showHosts: Bool
 
     var body: some View {
         GlassGroup(spacing: 8) {
@@ -429,7 +434,9 @@ struct FooterBar: View {
                         .disabled(!run.state.canControl)
                 }
                 Spacer()
-                if let run {
+                Button("Remote hosts", systemImage: "network") { withAnimation(Motion.resize) { showHosts.toggle() } }
+                    .glassButton().labelStyle(.iconOnly).help("Runs on other machines over SSH")
+                if let run, run.host == nil { // a remote folder cannot be opened from here
                     Button("Open folder", systemImage: "folder.fill") { NSWorkspace.shared.open(run.dir) }
                         .glassButton().labelStyle(.iconOnly).help("Open the run folder")
                 }
@@ -439,12 +446,67 @@ struct FooterBar: View {
             .controlSize(.large)
         }
         .animation(.snappy, value: run?.state)
-        .alert("Stop \(run?.name ?? "")?", isPresented: $confirmStop) {
+        .alert("Stop \(run?.label ?? "")?", isPresented: $confirmStop) {
             Button("Stop", role: .destructive) { if let run { store.send(.stop, to: run) } }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("It stops at the end of the current epoch and saves a checkpoint if the script registered one.")
         }
+    }
+}
+
+// MARK: - Remote hosts
+
+/// SSH names to watch (PRD REM1), with how each one answered last.
+struct HostsCard: View {
+    let store: RunStore
+    @State private var text = ""
+    @State private var rejected: [String] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "network").font(.caption).foregroundStyle(.teal)
+                Text("REMOTE HOSTS").font(.caption).foregroundStyle(.secondary).tracking(0.5)
+            }
+            Text("SSH names from ~/.ssh/config, comma separated. Each needs python3 and a login without a password prompt.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                TextField("spark, atlas", text: $text).textFieldStyle(.roundedBorder).onSubmit(save)
+                Button("Save", action: save).glassButton()
+            }
+            if !rejected.isEmpty {
+                Text("Not a host name: \(rejected.joined(separator: ", "))").font(.caption).foregroundStyle(Theme.red)
+            }
+            ForEach(store.hosts, id: \.self) { host in
+                let s = store.hostStates[host]
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Circle().fill(s?.error != nil ? Theme.red : s?.lastOK != nil ? Theme.green : Color.secondary)
+                        .frame(width: 7, height: 7)
+                    Text(host).font(.caption.weight(.semibold))
+                    Text(line(s)).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .onAppear { text = store.hosts.joined(separator: ", ") }
+    }
+
+    private func line(_ s: RunStore.HostState?) -> String {
+        guard let s else { return "connecting…" }
+        if let error = s.error { return "offline · \(error)" }
+        guard s.lastOK != nil else { return "connecting…" }
+        let live = s.runs.filter { $0.state.isLive }.count
+        return "\(s.runs.count) runs" + (live > 0 ? " · \(live) training" : "")
+    }
+
+    private func save() {
+        let parsed = RemoteHost.parse(text)
+        rejected = parsed.rejected
+        if parsed.hosts != store.hosts { store.hosts = parsed.hosts }
+        text = parsed.hosts.joined(separator: ", ")
     }
 }
 
@@ -525,7 +587,7 @@ func stateColor(_ state: RunState) -> Color {
     case .paused, .stopping, .stalled: Theme.amber
     case .finished: .blue
     case .failed, .lost: Theme.red
-    case .stopped: .secondary
+    case .stopped, .offline: .secondary
     }
 }
 

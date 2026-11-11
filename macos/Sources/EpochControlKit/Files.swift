@@ -19,8 +19,13 @@ public enum Files {
     /// Lines of metrics.jsonl. A bad or partial line is skipped.
     public static func metrics(_ url: URL) -> [MetricPoint] {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return metrics(lines: text.split(separator: "\n").map(String.init))
+    }
+
+    /// The same, from lines already read (a remote run's metrics arrive as lines).
+    public static func metrics(lines: [String]) -> [MetricPoint] {
         var out: [MetricPoint] = []
-        for line in text.split(separator: "\n") {
+        for line in lines {
             guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
                   let epoch = obj["epoch"] as? Int else { continue }
             out.append(MetricPoint(epoch: epoch, train: obj["train"] as? Double,
