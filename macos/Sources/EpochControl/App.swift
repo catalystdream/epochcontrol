@@ -53,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            // Never taller than the screen under the icon, less a margin for the arrow.
+            if let screen = button.window?.screen ?? NSScreen.main {
+                store.maxHeight = screen.visibleFrame.height - 24
+            }
             // Lay the content out first, so the popover opens at the right height.
             popover.contentViewController?.view.layoutSubtreeIfNeeded()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -63,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Resize with the same duration and curve as the SwiftUI animation (Motion.resize).
     private func resize(to height: CGFloat) {
-        let size = NSSize(width: 430, height: ceil(height))
+        let size = NSSize(width: 430, height: ceil(min(height, store.maxHeight)))
         guard popover.contentSize != size else { return }
         if !popover.isShown {
             popover.contentSize = size

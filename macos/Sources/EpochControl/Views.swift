@@ -29,13 +29,48 @@ struct PopoverView: View {
     @State private var confirmStop = false
     @State private var runsExpanded = true
     @State private var showHosts = false
+    @State private var middleHeight: CGFloat = 0
+    @State private var headerHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
     @Namespace private var selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        // Header and buttons stay put; the cards between them scroll once they no longer fit
+        // on the screen (Harrish, 11 Nov: with remote runs the popover ran off the screen).
         VStack(alignment: .leading, spacing: Theme.gap) {
             Header(store: store)
-            if showHosts { HostsCard(store: store) }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+            if store.scrolls {
+                ScrollView(.vertical) {
+                    middle.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { middleHeight = $0 }
+                }
+                .scrollIndicators(.automatic)
+                .frame(height: min(middleHeight, max(160, store.maxHeight - chrome)))
+            } else {
+                middle // snapshots: ImageRenderer does not draw scroll views
+            }
+            FooterBar(run: store.selected, store: store, confirmStop: $confirmStop, showHosts: $showHosts)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+        }
+        .fontDesign(.monospaced)
+        .padding(14)
+        .frame(width: 430)
+        .fixedSize(horizontal: false, vertical: true)
+        // Report the final height at once: the popover then resizes with the same curve as
+        // the content (AppDelegate), so the window and the content move together.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { store.contentHeight = $0 }
+        .focusEffectDisabled() // no keyboard-focus ring on the first button
+        .animation(animation, value: store.selectedID)
+        .onAppear { store.markSeen() }
+    }
+
+    /// Everything that does not scroll: padding, header, footer and the two gaps.
+    private var chrome: CGFloat { 28 + headerHeight + footerHeight + 2 * Theme.gap }
+
+    private var middle: some View {
+        VStack(alignment: .leading, spacing: Theme.gap) {
+            if showHosts { HostsCard(store: store) { withAnimation(Motion.resize) { showHosts = false } } }
             if store.runs.isEmpty {
                 EmptyState()
             } else {
@@ -48,26 +83,12 @@ struct PopoverView: View {
                     .id(run.id) // a new run swaps the details
                     .transition(reduceMotion ? AnyTransition.opacity
                                 : AnyTransition(.blurReplace).combined(with: .scale(scale: 0.98)))
-                    if let error = store.lastError {
-                        Text(error).font(.caption).foregroundStyle(Theme.red)
-                    }
-                    FooterBar(run: run, store: store, confirmStop: $confirmStop, showHosts: $showHosts)
-                } else {
-                    FooterBar(run: nil, store: store, confirmStop: $confirmStop, showHosts: $showHosts)
                 }
             }
-            if store.runs.isEmpty { FooterBar(run: nil, store: store, confirmStop: $confirmStop, showHosts: $showHosts) }
+            if let error = store.lastError {
+                Text(error).font(.caption).foregroundStyle(Theme.red)
+            }
         }
-        .fontDesign(.monospaced)
-        .padding(14)
-        .frame(width: 430)
-        .fixedSize(horizontal: false, vertical: true)
-        // Report the final height at once: the popover then resizes with the same curve as
-        // the content (AppDelegate), so the window and the content move together.
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { store.contentHeight = $0 }
-        .focusEffectDisabled() // no keyboard-focus ring on the first button
-        .animation(animation, value: store.selectedID)
-        .onAppear { store.markSeen() }
     }
 
     private var animation: Animation {
@@ -132,6 +153,10 @@ struct RunsCard: View {
             }
             .buttonStyle(.plain)
             Text(summary).font(.callout).foregroundStyle(Theme.green)
+            ForEach(store.hosts.filter { store.hostStates[$0]?.error != nil }, id: \.self) { host in
+                Text("\(host) offline · \(store.hostStates[host]?.error ?? "")")
+                    .font(.caption).foregroundStyle(Theme.amber).lineLimit(1)
+            }
             // The rows stay in place; only the list's height animates between 0 and its
             // measured height. Inserting and removing them made the glass lay out twice,
             // which showed as a jerk after expanding.
@@ -188,7 +213,7 @@ struct RunRow: View {
                 Text(duration(run.status?.timing?.active_s ?? 0))
                     .font(.caption).foregroundStyle(.secondary).contentTransition(.numericText())
             }
-            .padding(.vertical, 6).padding(.horizontal, 8)
+            .padding(.vertical, 4).padding(.horizontal, 8)
             .contentShape(Rectangle())
             .selectionHighlight(selected, in: namespace)
         }
@@ -460,6 +485,8 @@ struct FooterBar: View {
 /// SSH names to watch (PRD REM1), with how each one answered last.
 struct HostsCard: View {
     let store: RunStore
+    /// Called after a clean Save, so the card gets out of the way.
+    var onDone: () -> Void = {}
     @State private var text = ""
     @State private var rejected: [String] = []
 
@@ -469,8 +496,10 @@ struct HostsCard: View {
                 Image(systemName: "network").font(.caption).foregroundStyle(.teal)
                 Text("REMOTE HOSTS").font(.caption).foregroundStyle(.secondary).tracking(0.5)
             }
-            Text("SSH names from ~/.ssh/config, comma separated. Each needs python3 and a login without a password prompt.")
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if store.hosts.isEmpty {
+                Text("SSH names from ~/.ssh/config, comma separated. Each needs python3 and a login without a password prompt.")
+                    .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 6) {
                 TextField("spark, atlas", text: $text).textFieldStyle(.roundedBorder).onSubmit(save)
                 Button("Save", action: save).glassButton()
@@ -492,6 +521,7 @@ struct HostsCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
         .onAppear { text = store.hosts.joined(separator: ", ") }
+        .onChange(of: store.hosts) { text = store.hosts.joined(separator: ", ") }
     }
 
     private func line(_ s: RunStore.HostState?) -> String {
@@ -507,6 +537,7 @@ struct HostsCard: View {
         rejected = parsed.rejected
         if parsed.hosts != store.hosts { store.hosts = parsed.hosts }
         text = parsed.hosts.joined(separator: ", ")
+        if parsed.rejected.isEmpty { onDone() } // a host that cannot connect shows in the Runs card
     }
 }
 

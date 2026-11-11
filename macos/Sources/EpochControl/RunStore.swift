@@ -37,6 +37,10 @@ final class RunStore {
     /// Selecting a run loads its chart data at once, before the details swap in.
     var selectedID: String? { didSet { if let run = selected { loadMetrics(run) } } }
     var lastError: String?
+    /// Tallest the popover may get: the visible height of the icon's screen (set on open).
+    var maxHeight: CGFloat = 10_000
+    /// False in snapshots, which cannot draw scroll views.
+    var scrolls: Bool { autoRefresh }
     private var metricSizes: [String: Int] = [:]
     private var seenEnded: Set<String> = []
     private let root: URL
@@ -87,8 +91,8 @@ final class RunStore {
 
     var selected: RunInfo? { runs.first { $0.id == selectedID } }
     var live: [RunInfo] { runs.filter { $0.state.isLive } }
-    /// Live runs first, then the most recent ended ones.
-    var shown: [RunInfo] { live + runs.filter { !$0.state.isLive }.prefix(5) }
+    /// Live runs first, then the most recent ended ones (3, so remote runs leave room).
+    var shown: [RunInfo] { live + runs.filter { !$0.state.isLive }.prefix(3) }
 
     private func loadMetrics(_ run: RunInfo) {
         if let host = run.host, let rid = run.remoteID { // arrives with each poll
