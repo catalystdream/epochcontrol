@@ -35,7 +35,23 @@ final class RunStore {
         }
     }
     /// Selecting a run loads its chart data at once, before the details swap in.
-    var selectedID: String? { didSet { if let run = selected { loadMetrics(run) } } }
+    var selectedID: String? {
+        didSet {
+            guard let run = selected else { return }
+            loadMetrics(run)
+            // A remote run picked from the history has no chart points yet: ask now.
+            if let host = run.host, let rid = run.remoteID, hostStates[host]?.metrics[rid] == nil, autoRefresh {
+                pollRemotes()
+            }
+        }
+    }
+    /// The full list instead of the glance (PRD APP26). While open, remote hosts send up to
+    /// `historyLimit` runs instead of `glanceLimit`.
+    var historyOpen = false { didSet { if historyOpen, autoRefresh { pollRemotes() } } }
+    static let glanceLimit = 30
+    static let historyLimit = 300
+    /// Groups worth a line in the Runs card: running, or active in the last 12 h (PRD GRP2).
+    var groups: [GroupSummary] { Groups.current(runs) }
     var lastError: String?
     /// Tallest the popover may get: the visible height of the icon's screen (set on open).
     var maxHeight: CGFloat = 10_000
@@ -120,8 +136,11 @@ final class RunStore {
         guard !state.polling else { return }
         state.polling = true
         hostStates[host] = state
+        // Chart points only for this host's runs on screen; live runs always come.
+        let want = (shown + [selected].compactMap { $0 }).filter { $0.host == host }.compactMap(\.remoteID)
+        let limit = historyOpen ? Self.historyLimit : Self.glanceLimit
         let result: Result<RemoteReply, Error>
-        do { result = .success(try await Remote.read(via: .ssh(host), offsets: state.offsets)) }
+        do { result = .success(try await Remote.read(via: .ssh(host), offsets: state.offsets, limit: limit, want: want)) }
         catch { result = .failure(error) }
         guard hosts.contains(host), var s = hostStates[host] else { return } // removed meanwhile
         s.polling = false
@@ -129,6 +148,10 @@ final class RunStore {
         case .success(let reply):
             var keep: [String: [MetricPoint]] = [:], offsets: [String: Int] = [:]
             for r in reply.runs {
+                if r.skipped == true { // not asked for: keep what is loaded, if anything
+                    if let old = s.metrics[r.id] { keep[r.id] = old; offsets[r.id] = s.offsets[r.id] }
+                    continue
+                }
                 let new = Files.metrics(lines: r.metrics)
                 keep[r.id] = r.metrics_from == 0 ? new : (s.metrics[r.id] ?? []) + new
                 offsets[r.id] = r.metrics_to

@@ -15,6 +15,24 @@ public struct Meta: Codable, Sendable, Equatable {
     public var source: String?
     public var run_dir: String?
     public var script: String?
+    public var group: RunGroup?
+}
+
+/// Runs started by one script (PRD GRP1). Decoding never throws: a damaged group gets an
+/// empty name (ignored by `Groups`), so it can never hide the whole meta.json.
+public struct RunGroup: Codable, Sendable, Equatable {
+    public var name: String
+    public var total: Int?
+
+    public init(name: String, total: Int? = nil) { self.name = name; self.total = total }
+
+    public init(from decoder: Decoder) throws {
+        let c = try? decoder.container(keyedBy: CodingKeys.self)
+        name = ((try? c?.decodeIfPresent(String.self, forKey: .name)) ?? nil)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        let t = (try? c?.decodeIfPresent(Int.self, forKey: .total)) ?? nil
+        total = t.flatMap { $0 > 0 ? $0 : nil }
+    }
 }
 
 public struct Best: Codable, Sendable, Equatable {

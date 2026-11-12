@@ -129,3 +129,15 @@ private func remoteHome() throws -> (runs: URL, transport: RemoteTransport) {
     }
     #expect(Date().timeIntervalSince(start) < 5)
 }
+
+@Test func chartPointsComeOnlyForLiveOrWantedRuns() async throws {
+    let (_, transport) = try remoteHome()
+    let ended = "20261103-080000-bbbb" // finished in the fixtures
+    let none = try await Remote.read(via: transport, want: [])
+    #expect(none.runs.first { $0.id == ended }?.skipped == true)
+    #expect(none.runs.first { $0.id == exampleID }?.skipped == false) // "running": always sent
+    let wanted = try await Remote.read(via: transport, want: [ended])
+    #expect(wanted.runs.first { $0.id == ended }?.skipped == false)
+    let old = try await Remote.read(via: transport) // no want: everything, as before
+    #expect(old.runs.allSatisfy { $0.skipped == false })
+}

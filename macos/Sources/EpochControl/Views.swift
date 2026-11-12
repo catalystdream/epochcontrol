@@ -130,6 +130,7 @@ struct RunsCard: View {
     let namespace: Namespace.ID
     let animation: Animation
     @State private var listHeight: CGFloat = 0
+    @State private var historyGroup: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -161,10 +162,33 @@ struct RunsCard: View {
             // measured height. Inserting and removing them made the glass lay out twice,
             // which showed as a jerk after expanding.
             GlassGroup(spacing: 4) {
-                VStack(spacing: 2) {
-                    ForEach(store.shown) { run in
-                        RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
-                            withAnimation(animation) { store.selectedID = run.id }
+                VStack(alignment: .leading, spacing: 2) {
+                    // One line per script batch (PRD GRP2); a tap shows its runs.
+                    ForEach(store.groups) { group in
+                        GroupLine(group: group) {
+                            withAnimation(Motion.resize) { historyGroup = group.id; store.historyOpen = true }
+                        }
+                    }
+                    if store.historyOpen {
+                        HistoryList(store: store, group: $historyGroup, namespace: namespace, animation: animation)
+                    } else {
+                        ForEach(store.shown) { run in
+                            RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
+                                withAnimation(animation) { store.selectedID = run.id }
+                            }
+                        }
+                        if store.runs.count > store.shown.count {
+                            Button {
+                                withAnimation(Motion.resize) { historyGroup = nil; store.historyOpen = true }
+                            } label: {
+                                HStack {
+                                    Text("Show all (\(store.runs.count))").font(.caption.weight(.semibold))
+                                    Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                                }
+                                .foregroundStyle(.secondary).padding(.vertical, 4).padding(.horizontal, 8)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -186,6 +210,120 @@ struct RunsCard: View {
         let paused = store.live.filter { $0.state == .paused }.count
         if live == 0 { return "nothing training" }
         return paused > 0 ? "\(live) training · \(paused) paused" : "\(live) training"
+    }
+}
+
+/// "aeroconf A1 · spark   4 of 9 done", a bar, and what is left (PRD GRP2).
+struct GroupLine: View {
+    let group: GroupSummary
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Image(systemName: "square.stack.3d.up.fill").font(.caption).foregroundStyle(.teal)
+                    Text(group.label).font(.callout.weight(.semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(group.total.map { "\(group.done) of \($0) done" } ?? "\(group.done) done")
+                        .font(.caption.weight(.semibold)).contentTransition(.numericText())
+                }
+                if let total = group.total, total > 0 {
+                    Bar(value: Double(group.done + group.ended) / Double(total),
+                        color: group.ended > 0 ? Theme.amber : Theme.green, height: 4)
+                }
+                Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .padding(.vertical, 5).padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Show this group's runs")
+    }
+
+    private var detail: String {
+        var parts: [String] = []
+        if group.running > 0 { parts.append("\(group.running) running") }
+        if group.ended > 0 { parts.append("\(group.ended) stopped or failed") }
+        if group.offline > 0 { parts.append("\(group.offline) offline") }
+        if let left = group.toGo { parts.append(left == 0 ? "none to go" : "\(left) to go") }
+        return parts.isEmpty ? "\(group.started) started" : parts.joined(separator: " · ")
+    }
+}
+
+/// Every run, newest day first, filtered by machine, outcome or group (PRD APP26).
+struct HistoryList: View {
+    let store: RunStore
+    @Binding var group: String?
+    let namespace: Namespace.ID
+    let animation: Animation
+    @State private var machine: History.Machine = .all
+    @State private var outcome: History.Outcome = .all
+    static let maxRows = 150
+
+    var body: some View {
+        let days = History.days(store.runs, machine: machine, outcome: outcome, group: group)
+        let count = days.reduce(0) { $0 + $1.runs.count }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Button {
+                    withAnimation(Motion.resize) { store.historyOpen = false; group = nil }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left").font(.caption2.weight(.bold))
+                        Text("Recent").font(.caption.weight(.semibold))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(count) runs").font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            if let id = group, let g = Groups.summaries(store.runs).first(where: { $0.id == id }) {
+                HStack(spacing: 6) {
+                    Chip(text: "group: \(g.label)  ✕", on: true) { group = nil }
+                }
+                .padding(.horizontal, 8)
+            }
+            HStack(spacing: 6) {
+                Chip(text: "All", on: machine == .all) { machine = .all }
+                if !store.hosts.isEmpty {
+                    Chip(text: "This Mac", on: machine == .local) { machine = .local }
+                    ForEach(store.hosts, id: \.self) { h in Chip(text: h, on: machine == .host(h)) { machine = .host(h) } }
+                }
+            }
+            .padding(.horizontal, 8)
+            HStack(spacing: 6) {
+                ForEach(History.Outcome.allCases, id: \.self) { o in
+                    Chip(text: o.rawValue.capitalized, on: outcome == o) { outcome = o }
+                }
+            }
+            .padding(.horizontal, 8)
+            ForEach(days, id: \.day) { day in
+                Text(History.title(forDay: day.day)).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 8).padding(.top, 4)
+                ForEach(day.runs.prefix(max(0, Self.maxRows - offset(of: day.day, in: days)))) { run in
+                    RunRow(run: run, selected: run.id == store.selectedID, namespace: namespace) {
+                        withAnimation(animation) { store.selectedID = run.id }
+                    }
+                }
+            }
+            if count > Self.maxRows {
+                Text("Newest \(Self.maxRows) shown; filter to see older runs.").font(.caption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+            }
+            if count == 0 {
+                Text("No runs match.").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
+            }
+        }
+    }
+
+    /// Rows already listed before this day, to stop at `maxRows` in total.
+    private func offset(of day: String, in days: [(day: String, runs: [RunInfo])]) -> Int {
+        var n = 0
+        for d in days { if d.day == day { return n }; n += d.runs.count }
+        return n
     }
 }
 
@@ -714,6 +852,7 @@ enum Snapshot {
     static func render(to url: URL) {
         let store = RunStore(autoRefresh: false)
         if let pick = ProcessInfo.processInfo.environment["EPOCHCONTROL_SELECT"] { store.selectedID = pick }
+        if ProcessInfo.processInfo.environment["EPOCHCONTROL_HISTORY"] != nil { store.historyOpen = true }
         let view = PopoverView(store: store)
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .dark)

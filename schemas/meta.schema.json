@@ -87,6 +87,32 @@
         "type": "string"
       },
       "description": "Only with record_command=True: it may contain secrets (PRD NF6)."
+    },
+    "group": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Runs started by one script, e.g. a bash loop (PRD GRP1): from EPOCHCONTROL_GROUP / EPOCHCONTROL_GROUP_TOTAL or start(group=..., group_total=...). Optional; older readers ignore it.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "How many runs the script will start, if known."
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

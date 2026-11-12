@@ -60,6 +60,8 @@ run.finish()
 
 Add `stop_on_patience=True` to `start()` to end the run after `patience` epochs without improvement. `with epochcontrol.start(...) as run:` also works; an exception then marks the run failed.
 
+Runs started by one script can be shown together: put `export EPOCHCONTROL_GROUP="sweep A1" EPOCHCONTROL_GROUP_TOTAL=9` at the top of a bash loop (or pass `group=` and `group_total=` to `start()`), and the menu bar shows "sweep A1 · 4 of 9 done · 1 running · 4 to go".
+
 ## Command line
 
 ```bash

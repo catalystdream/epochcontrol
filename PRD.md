@@ -235,6 +235,18 @@ run.finish()
 | Q2 | Skips jobs that already finished successfully | P1 | Scenario S3 passes |
 | Q3 | The queue runner is Python, works on Linux, and needs no app | P1 | Runs on Linux in CI |
 
+### Groups (v0.2.x, Harrish 12 Nov)
+
+A bash script that starts several runs one after another (or side by side) shows how far it
+has got, with no change to how it is launched. Lighter than the queue: it only counts, it
+never starts or resumes anything.
+
+| ID | Requirement | Pri | Accepted when |
+|---|---|---|---|
+| GRP1 | `export EPOCHCONTROL_GROUP="name" EPOCHCONTROL_GROUP_TOTAL=9` (or `start(group=..., group_total=...)`) records `group: {name, total}` in meta.json; a bad total is dropped, never raised | P1 | Runs from a bash loop carry the group |
+| GRP2 | The app shows one line per batch: "name · host  4 of 9 done", a bar, and running / stopped or failed / to go; a tap lists the batch's runs | P1 | A 9-run bash loop shows what is left at a glance |
+| GRP3 | The same name reused more than 1 h after the batch's last run ended starts a new batch; runs on different machines are separate batches | P1 | Running the script again tomorrow starts at 0 of 9 |
+
 ### Framework support
 
 | ID | Requirement | Pri | Accepted when |
@@ -315,6 +327,7 @@ folder files it reads are.
 | APP23 | Works in light and dark mode | P1 | Snapshot test of both |
 | APP24 | **Liquid Glass on macOS 26 and later** (Harrish, 3 Nov): cards, the run selection and the buttons use the system glass (`glassEffect`, `GlassEffectContainer`, glass button styles). macOS 14–25 get the same layout with materials | P0 | Looks native on macOS 27; still works on macOS 14 |
 | APP25 | **Animated selection** (Harrish, 3 Nov): the highlight moves to the chosen run (glass morph on 26+, sliding highlight before), the run card swaps with a blur-fade, changing numbers roll | P0 | Switching runs is smooth, never a jump; respects Reduce Motion |
+| APP26 | **History** (Harrish, 12 Nov): "Show all (N)" under the recent runs opens every run, newest day first (Today, Yesterday, Mon 9 Nov), filtered by machine (All, This Mac, each host) and outcome (finished, stopped, failed); any run opens its tiles and chart. Remote hosts send up to 300 runs while it is open, and chart points only for live runs and runs on screen | P1 | A run from last week is found and its chart opened |
 
 ---
 

@@ -39,6 +39,9 @@ public struct RemoteRun: Decodable, Sendable {
     public var metrics_from: Int
     public var metrics_to: Int
     public var metrics: [String]
+    /// True when the chart points were not asked for (an ended run nobody is looking at):
+    /// keep what is already loaded.
+    public var skipped: Bool?
 }
 
 public struct RemoteReply: Decodable, Sendable {
@@ -132,9 +135,13 @@ private final class Collector: @unchecked Sendable { var data = Data() }
 
 public enum Remote {
     /// Read the newest run folders, with only the metrics bytes after `offsets[runID]`.
+    /// With `want`, chart points come only for live runs and those run folders, so a long
+    /// history stays cheap to poll (PRD APP26).
     public static func read(via transport: RemoteTransport, offsets: [String: Int] = [:],
-                            limit: Int = 30) async throws -> RemoteReply {
-        let data = try await transport.run(script(["op": "read", "offsets": offsets, "limit": limit]))
+                            limit: Int = 30, want: [String]? = nil) async throws -> RemoteReply {
+        var request: [String: Any] = ["op": "read", "offsets": offsets, "limit": limit]
+        if let want { request["want"] = want }
+        let data = try await transport.run(script(request))
         do { return try JSONDecoder().decode(RemoteReply.self, from: data) } catch {
             throw RemoteError.badReply(String(decoding: data.prefix(120), as: UTF8.self))
         }
@@ -263,6 +270,8 @@ def do_read(root):
         names = []
     out = []
     offsets = REQ.get("offsets") or {}
+    want = REQ.get("want")
+    want = set(want) if isinstance(want, list) else None
     for n in sorted(names, reverse=True)[: int(REQ.get("limit", 30))]:
         d = os.path.join(root, n)
         meta = read_json(os.path.join(d, "meta.json"))
@@ -275,10 +284,15 @@ def do_read(root):
         age = age_of(s["heartbeat"]) if isinstance(s.get("heartbeat"), str) else None
         live = s.get("state", "starting") in LIVE
         is_alive = alive(s.get("pid") or meta.get("pid"), s.get("pid_start") or meta.get("pid_start")) if live else None
-        frm, to, lines = metrics_since(os.path.join(d, "metrics.jsonl"), int(offsets.get(n, 0)))
+        skipped = want is not None and not live and n not in want
+        if skipped:
+            frm = to = int(offsets.get(n, 0))
+            lines = []
+        else:
+            frm, to, lines = metrics_since(os.path.join(d, "metrics.jsonl"), int(offsets.get(n, 0)))
         out.append({"id": n, "dir": d, "meta": meta, "status": status, "control": control,
                     "age": age, "alive": is_alive, "metrics_from": frm, "metrics_to": to,
-                    "metrics": lines})
+                    "metrics": lines, "skipped": skipped})
     return {"schema": 1, "root": root, "runs": out}
 
 

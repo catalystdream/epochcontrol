@@ -47,7 +47,8 @@ class Run:
                  patience: int | None = None, monitor: str = "val", mode: str = "min",
                  run_dir: str | os.PathLike | None = None, tags: list[str] | None = None,
                  checkpoint_on_pause: bool = True, stop_on_patience: bool = False,
-                 open_app: bool = True, clock=None, home: Path | None = None,
+                 open_app: bool = True, group: str | None = None, group_total: int | None = None,
+                 clock=None, home: Path | None = None,
                  heartbeat: bool = True, heartbeat_s: float = HEARTBEAT_S, poll_s: float = POLL_S):
         from . import __version__
 
@@ -96,6 +97,7 @@ class Run:
             "total_epochs": total, "source": source, "framework": None,
             "library_version": __version__, "pause_mode": "cooperative", "tags": list(tags or []),
             "run_dir": os.fspath(run_dir) if run_dir is not None else None, "script": script,
+            "group": _group(group, group_total),
         })
         self.event("started")
         self.write_status()
@@ -362,6 +364,23 @@ def _close_open_runs() -> None:
             pass
 
 
+def _group(name: str | None, total: int | None) -> dict | None:
+    """The run's group (PRD GRP1): arguments first, then EPOCHCONTROL_GROUP and
+    EPOCHCONTROL_GROUP_TOTAL, so a bash loop needs two exports and no code change.
+    A bad total is dropped, never raised (PRD SAFE1)."""
+    if name is None:
+        name = os.environ.get("EPOCHCONTROL_GROUP")
+    name = str(name).strip()[:200] if name is not None else ""
+    if not name:
+        return None
+    if total is None:
+        raw = os.environ.get("EPOCHCONTROL_GROUP_TOTAL", "").strip()
+        total = int(raw) if raw.isdigit() else None
+    if isinstance(total, bool) or not isinstance(total, int) or total < 1:
+        total = None
+    return {"name": name, "total": total}
+
+
 def start(name: str | None = None, total_epochs: int | None = None, **options) -> Run:
     """Start a run.
 
@@ -376,7 +395,9 @@ def start(name: str | None = None, total_epochs: int | None = None, **options) -
     ``checkpoint_on_pause`` (default True), ``stop_on_patience`` (default False: when
     True, the run ends once ``patience`` epochs pass without a better ``monitor`` value,
     saving the checkpoint first, as on Stop), ``open_app`` (default True: start the Mac
-    menu-bar app if it is not running; ``EPOCHCONTROL_NO_APP=1`` turns this off everywhere).
+    menu-bar app if it is not running; ``EPOCHCONTROL_NO_APP=1`` turns this off everywhere),
+    ``group`` and ``group_total`` (runs started by one script, shown together as "4 of 9
+    done"; a bash loop can instead ``export EPOCHCONTROL_GROUP=... EPOCHCONTROL_GROUP_TOTAL=9``).
     """
     if name is None:
         name = Path(sys.argv[0]).stem if sys.argv and sys.argv[0] else "run"
