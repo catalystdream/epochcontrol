@@ -11,6 +11,7 @@ Python package + macOS menu-bar app for monitoring and controlling training runs
 - **The app only reads and controls.** It never trains, and quitting it never affects a run.
 - **Signals only after checking process ID and start time** (CTL6).
 - **Reading never writes.** Commands that change a run stay separate from those that read (AG11).
+- **Docs ship with the feature, in the same commit.** A new or changed option, method, environment variable, CLI command or flag, or app feature updates `docs/reference.md` (the full list), `README.md` and `python/README.md` when it is user-facing (the PyPI copy uses absolute GitHub links), and `python/epochcontrol/_guide.py` when agents need it; then regenerate `docs/llms.txt` with `epochcontrol agent-guide > docs/llms.txt` (a test checks they match).
 
 ## Layout
 `python/` package · `macos/` Xcode project · `schemas/` JSON Schemas · `examples/` · `docs/`

@@ -65,7 +65,7 @@ Runs started by one script can be shown together: put `export EPOCHCONTROL_GROUP
 ## Command line
 
 ```bash
-epochcontrol ls                 # all runs, newest first
+epochcontrol ls [-n N]          # runs, newest first (default 20, -n 0 = all)
 epochcontrol status [RUN]       # one run in detail
 epochcontrol pause  [RUN]       # acts at the end of the current epoch
 epochcontrol resume [RUN]
@@ -74,6 +74,14 @@ epochcontrol agent-guide        # instructions for coding agents
 ```
 
 `RUN` is a run id, an id prefix or a name; without it, the only run in progress. Every command takes `--json`.
+
+## Runs on other machines
+
+The app also shows runs on a Linux GPU box (a DGX Spark, a server, a cloud VM) over SSH. On that machine: `pip install epochcontrol` in the training environment and `python3`; nothing else. On the Mac: an SSH login that does not prompt (`ssh -o BatchMode=yes spark true`), then network icon → **Remote hosts** → `spark` → Save. Remote runs appear as "spark · name" with the same chart and Pause / Resume / Stop; an unreachable host shows its runs as offline.
+
+**Show all** under the recent runs opens the full history, by day, filtered by machine and outcome.
+
+Every option, method, variable, command and app feature: [docs/reference.md](docs/reference.md).
 
 ## How it works
 
@@ -87,7 +95,7 @@ The file format is defined in [`schemas/`](schemas/).
 
 ## Status
 
-Early. v0.1 (Python package and CLI) and v0.2 (the menu-bar app) work on real runs; next are notifications, settings, a run queue, framework adapters (Lightning, Keras, Hugging Face) and runs on other machines over SSH. Plan: [PRD.md](PRD.md).
+Early. v0.1 (Python package and CLI) and v0.2 (the menu-bar app) work on real runs; so do runs on other machines over SSH, the run history and script groups; next are notifications, settings, a run queue and framework adapters (Lightning, Keras, Hugging Face). Plan: [PRD.md](PRD.md).
 
 ## License
 
