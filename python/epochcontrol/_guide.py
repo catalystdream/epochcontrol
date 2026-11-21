@@ -50,8 +50,10 @@ then `run.wait_if_paused()`.
     epochcontrol ls --json [-n N]                 # runs, newest first (default 20, 0 = all)
     epochcontrol status [RUN] --json              # one run
     epochcontrol pause|resume|stop [RUN] --by agent --json
+    epochcontrol wait [RUN] --json [--timeout S]  # block until it ends; do not poll
 RUN is a run id, an id prefix or a name; without it, the only run in progress.
-Exit codes: 0 done, 1 error, 2 not found, 3 refused (for example a finished run), 4 ambiguous.
+Exit codes: 0 done, 1 error, 2 not found, 3 refused (for example a finished run), 4 ambiguous,
+5 timed out (wait --timeout).
 States: running, paused, stopping, stopped, finished, failed; stalled (no heartbeat, process
 alive) and lost (process gone) are worked out by the reader.
 On a remote machine, run these commands there (for example over ssh); the Mac app reaches

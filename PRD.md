@@ -321,8 +321,8 @@ folder files it reads are.
 | APP17 | A corrupt or half-written file never crashes the app | P0 | Tested with fixture folders |
 | APP18 | Quitting the app never affects runs | P0 | |
 | APP19 | Tells a frozen process from a dead one (see §11, states) | P0 | Tested for sleep, SIGSTOP and a killed process |
-| APP20 | Notifications: finished, failed, stopped, lost | P1 | |
-| APP21 | Optional alerts: plateau (patience above a set share), queue finished | P1 | |
+| APP20 | Notifications: finished, failed, stopped, lost | P1 | Built 21 Nov: local and remote runs; never for runs already over when first seen; click opens the run; bell to turn off; `osascript` fallback if the system refuses an unsigned build (R3) |
+| APP21 | Optional alerts: plateau (patience above a set share), queue finished | P1 | 21 Nov: "group done" built (GRP batches with a declared total); plateau and queue still to do |
 | APP22 | Settings: runs folder, menu text, refresh rate, notifications, default pause mode, launch at login, retention | P1 | |
 | APP23 | Works in light and dark mode | P1 | Snapshot test of both |
 | APP24 | **Liquid Glass on macOS 26 and later** (Harrish, 3 Nov): cards, the run selection and the buttons use the system glass (`glassEffect`, `GlassEffectContainer`, glass button styles). macOS 14–25 get the same layout with materials | P0 | Looks native on macOS 27; still works on macOS 14 |
@@ -352,7 +352,7 @@ Everything here works with any coding agent. Only the optional MCP server is tie
 |---|---|---|---|
 | AG7 | `--json` on every CLI command that shows data, with a stable, documented output | P0 | Output validates against a schema in `schemas/` |
 | AG8 | Exit codes tell success, not found and refused apart | P0 | Tested for each case |
-| AG9 | `epochcontrol wait <run>` blocks until the run ends, so an agent need not poll | P1 | Returns the final state as JSON |
+| AG9 | `epochcontrol wait <run>` blocks until the run ends, so an agent need not poll | P1 | Returns the final state as JSON. Built 21 Nov: `--timeout` (exit 5), `--interval`; read-only |
 | AG10 | `epochcontrol mcp`: a local MCP server with `list_runs`, `get_status`, `get_metrics`, and control tools | P2 | Works from Claude Code. Only built if `--json` proves not to be enough |
 
 ### Safety with agents

@@ -127,3 +127,54 @@ def test_agent_guide_matches_llms_txt(capsys):
     assert code == 0 and out == GUIDE + "\n"
     assert (ROOT / "docs" / "llms.txt").read_text() == out
     assert "approval" in GUIDE  # PRD AG14
+
+
+# -- groups in the CLI (PRD GRP1) and wait (AG9) ------------------------------------
+
+def test_ls_and_status_show_the_group(env_home, capsys, validate):
+    plain = new_run("plain")
+    grouped = epochcontrol.start(name="seed42", total_epochs=5, heartbeat=False, group="sweep A1", group_total=9)
+    code, out, _ = cli(capsys, "ls", "--json")
+    runs = json.loads(out)
+    validate("cli", runs)
+    assert {r["name"]: r["group"] for r in runs} == {"seed42": {"name": "sweep A1", "total": 9}, "plain": None}
+    code, out, _ = cli(capsys, "ls")
+    header, *rows = out.splitlines()
+    assert "GROUP" in header and any("sweep A1" in r for r in rows)
+    plain.finish()
+    grouped.finish()
+
+
+def test_ls_has_no_group_column_without_groups(env_home, capsys):
+    run = new_run("plain")
+    code, out, _ = cli(capsys, "ls")
+    assert "GROUP" not in out.splitlines()[0]
+    run.finish()
+
+
+def test_wait_returns_when_the_run_ends(env_home, capsys, validate):
+    run = new_run("long")
+    threading.Timer(0.4, run.finish).start()
+    t0 = time.monotonic()
+    code, out, _ = cli(capsys, "wait", run.run_id, "--json", "--interval", "0.05")
+    result = json.loads(out)
+    validate("cli", result)
+    assert code == 0 and result["state"] == "finished" and time.monotonic() - t0 < 5
+
+
+def test_wait_on_an_ended_run_returns_at_once(env_home, capsys):
+    run = new_run("done")
+    run.finish(state="failed")
+    code, out, _ = cli(capsys, "wait", "done")
+    assert code == 0 and "failed" in out
+
+
+def test_wait_times_out_and_never_writes(env_home, capsys, validate):
+    run = new_run("still going")
+    before = snapshot(env_home)
+    code, out, _ = cli(capsys, "wait", run.run_id, "--json", "--timeout", "0.3", "--interval", "0.05")
+    result = json.loads(out)
+    validate("cli", result)
+    assert code == 5 and result["code"] == "timeout"
+    assert snapshot(env_home) == before  # reading never writes (PRD AG11)
+    run.finish()

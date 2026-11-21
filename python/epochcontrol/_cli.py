@@ -1,6 +1,7 @@
 """The ``epochcontrol`` command. Reading commands never write (PRD AG11).
 
-Exit codes: 0 done, 1 error, 2 not found, 3 refused, 4 ambiguous run (PRD AG8).
+Exit codes: 0 done, 1 error, 2 not found, 3 refused, 4 ambiguous run, 5 timed out
+(``wait --timeout``) (PRD AG8, AG9).
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from ._run import ENDED, HEARTBEAT_S
 
 STALE_S = 3 * HEARTBEAT_S
 LIVE = ("starting", "running", "paused", "stopping")
-OK, ERROR, NOT_FOUND, REFUSED, AMBIGUOUS = 0, 1, 2, 3, 4
+OK, ERROR, NOT_FOUND, REFUSED, AMBIGUOUS, TIMEOUT = 0, 1, 2, 3, 4, 5
 
 
 def _alive(pid: int | None, pid_start: float | None) -> bool:
@@ -65,6 +66,7 @@ def summarise(d: Path, now: float | None = None) -> dict | None:
         "best": status.get("best"), "patience": status.get("patience"), "timing": status.get("timing"),
         "eta_s": status.get("eta_s"), "heartbeat_age_s": age, "pid": status.get("pid", meta.get("pid")),
         "started_at": meta.get("started_at"), "dir": str(d),
+        "group": meta.get("group") if isinstance(meta.get("group"), dict) else None,
     }
 
 
@@ -131,24 +133,43 @@ def _print_table(runs: list[dict]) -> None:
     if not runs:
         print("no runs")
         return
-    rows = [("RUN", "NAME", "STATE", "EPOCH", "ACTIVE", "ETA", "BEST")]
+    grouped = any(r.get("group") for r in runs)  # the column only when some run has a group
+    rows = [("RUN", "NAME", "STATE", "EPOCH", "ACTIVE", "ETA", "BEST") + (("GROUP",) if grouped else ())]
     for r in runs:
         ep = f"{r['epoch']}/{r['total_epochs']}" if r["total_epochs"] else str(r["epoch"] if r["epoch"] is not None else "-")
         best = f"{r['best']['value']:.4g} @{r['best']['epoch']}" if r.get("best") else "-"
+        g = r.get("group") or {}
+        group = (g.get("name", "")[:24] + (f" /{g['total']}" if g.get("total") else "")) if g else "-"
         rows.append((r["run_id"], r["name"][:28], r["state"], ep,
-                     _fmt_s((r["timing"] or {}).get("active_s")), _fmt_s(r["eta_s"]), best))
+                     _fmt_s((r["timing"] or {}).get("active_s")), _fmt_s(r["eta_s"]), best)
+                    + ((group,) if grouped else ()))
     w = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
     for row in rows:
         print("  ".join(c.ljust(w[i]) for i, c in enumerate(row)).rstrip())
 
 
 def _fail(args, code: int, message: str) -> int:
-    names = {NOT_FOUND: "not_found", REFUSED: "refused", AMBIGUOUS: "ambiguous"}
+    names = {NOT_FOUND: "not_found", REFUSED: "refused", AMBIGUOUS: "ambiguous", TIMEOUT: "timeout"}
     if args.json:
         print(json.dumps({"error": message, "code": names.get(code, "refused")}))
     else:
         print(f"epochcontrol: {message}", file=sys.stderr)
     return code
+
+
+def _wait(args, run: dict) -> int:
+    """Block until the run is no longer live (PRD AG9), so an agent need not poll. Only
+    reads. A stalled run (alive, no heartbeat) is still waited for; a lost one has ended."""
+    deadline = None if args.timeout is None else time.monotonic() + args.timeout
+    d = Path(run["dir"])
+    while True:
+        now = summarise(d) or run
+        if now["state"] not in LIVE and now["state"] != "stalled":
+            print(json.dumps(now, indent=2)) if args.json else _print_table([now])
+            return OK
+        if deadline is not None and time.monotonic() >= deadline:
+            return _fail(args, TIMEOUT, f"run {run['run_id']} still {now['state']} after {args.timeout:g} s")
+        time.sleep(max(0.01, args.interval if deadline is None else min(args.interval, max(0.0, deadline - time.monotonic()))))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -167,8 +188,12 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("run", nargs="?", help="run id, id prefix or name (default: the only live run)")
         sp.add_argument("--by", choices=["cli", "agent"], default="cli", help="who sends it (recorded)")
         sp.add_argument("--wait", type=float, default=3.0, help="seconds to wait for the run to confirm")
+    wt = sub.add_parser("wait", help="block until a run ends (finished, stopped, failed or lost)")
+    wt.add_argument("run", nargs="?", help="run id, id prefix or name (default: the only live run)")
+    wt.add_argument("--timeout", type=float, default=None, help="give up after this many seconds (exit 5)")
+    wt.add_argument("--interval", type=float, default=2.0, help="seconds between checks (default 2)")
     sub.add_parser("agent-guide", help="instructions for coding agents")
-    for sp in (ls, st, *[sub.choices[c] for c in ("pause", "resume", "stop")]):
+    for sp in (ls, st, wt, *[sub.choices[c] for c in ("pause", "resume", "stop")]):
         sp.add_argument("--json", action="store_true", help="machine-readable output")
     args = p.parse_args(argv)
 
@@ -186,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "status":
         print(json.dumps(run, indent=2)) if args.json else _print_table([run])
         return OK
+    if args.cmd == "wait":
+        return _wait(args, run)
     if run["state"] not in ("running", "paused", "stopping", "starting"):
         return _fail(args, REFUSED, f"run {run['run_id']} is {run['state']}")
     if args.cmd == "resume" and run["state"] != "paused":

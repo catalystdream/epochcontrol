@@ -380,7 +380,7 @@ struct Tiles: View {
             }
             GridRow {
                 Tile(icon: "trophy.fill", title: "Best val", iconColor: Theme.amber,
-                     badge: bestBadge(s), value: s?.best.map { $0.value.formatted(.number.precision(.significantDigits(4))) } ?? "—",
+                     badge: bestBadge(s), value: s?.best.map { Fmt.value($0.value) } ?? "—",
                      unit: "", side: s?.best.map { "ep \($0.epoch)" } ?? "",
                      bar: nil, barColor: .clear, showsBar: false,
                      lines: [s?.best.map { "\($0.monitor ?? "val") · \($0.mode ?? "min") · green on chart" } ?? "no value logged"])
@@ -488,7 +488,7 @@ struct LossCard: View {
                 // Always present ("—" without data), so the header keeps its height.
                 VStack(alignment: .trailing, spacing: 0) {
                     Text(points.last(where: { $0.val != nil })?.val
-                            .map { $0.formatted(.number.precision(.significantDigits(4))) } ?? "—")
+                            .map { Fmt.value($0) } ?? "—")
                         .font(.system(size: 17, weight: .bold, design: .monospaced))
                         .contentTransition(.numericText())
                     Text("latest val").font(.caption2).foregroundStyle(.secondary)
@@ -569,6 +569,7 @@ struct LossCard: View {
             }
         }
         .frame(height: LossCard.chartHeight)
+        .environment(\.locale, Fmt.locale) // axis labels "0.8" and "1000", not "0,8" and "1.000"
     }
 }
 
@@ -597,6 +598,12 @@ struct FooterBar: View {
                         .disabled(!run.state.canControl)
                 }
                 Spacer()
+                Button(store.notificationsOn ? "Notifications on" : "Notifications off",
+                       systemImage: store.notificationsOn ? "bell.fill" : "bell.slash") { store.notificationsOn.toggle() }
+                    .glassButton().labelStyle(.iconOnly)
+                    .help(store.notificationsOn
+                          ? "Notifications \(store.notificationStatus.isEmpty ? "on" : store.notificationStatus): runs that end, groups that finish. Click to turn off"
+                          : "Notifications off. Click to turn on")
                 Button("Remote hosts", systemImage: "network") { withAnimation(Motion.resize) { showHosts.toggle() } }
                     .glassButton().labelStyle(.iconOnly).help("Runs on other machines over SSH")
                 if let run, run.host == nil { // a remote folder cannot be opened from here

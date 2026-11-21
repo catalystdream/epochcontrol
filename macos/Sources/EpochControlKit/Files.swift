@@ -53,7 +53,8 @@ public enum Files {
         return try? Date(s, strategy: .iso8601)
     }
 
-    public static func isoNow(_ d: Date = Date()) -> String {
-        d.formatted(Date.ISO8601FormatStyle(timeZone: .current))
+    /// RFC 3339, as the schema's `date-time` and Python's `isoformat()`: "+01:00", not "+0100".
+    public static func isoNow(_ d: Date = Date(), timeZone: TimeZone = .current) -> String {
+        d.formatted(Date.ISO8601FormatStyle(timeZoneSeparator: .colon, timeZone: timeZone))
     }
 }

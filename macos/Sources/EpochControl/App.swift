@@ -28,8 +28,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
     private let popover = NSPopover()
     private var lastIcon: MenuIcon.State?
+    private let notifier = Notifier()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Notifications (PRD APP20): ask once; a click opens the popover on that run.
+        notifier.onStatus = { [weak self] in self?.store.notificationStatus = $0 }
+        notifier.onOpen = { [weak self] run in
+            guard let self else { return }
+            store.selectedID = run
+            if !popover.isShown { toggle(nil) }
+        }
+        store.onNotices = { [weak self] in self?.notifier.post($0) }
+        store.onNotificationsEnabled = { [weak self] in self?.notifier.authorize() }
+        if store.notificationsOn { notifier.authorize() }
+
         NSApp.setActivationPolicy(.accessory) // menu bar only, no Dock icon (PRD APP1)
 
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)

@@ -135,6 +135,7 @@ epochcontrol status [RUN]       # one run in detail
 epochcontrol pause  [RUN]       # acts at the end of the current epoch
 epochcontrol resume [RUN]
 epochcontrol stop   [RUN]       # clean stop, checkpoint first if registered
+epochcontrol wait   [RUN]       # block until the run ends (--timeout S, --interval S)
 epochcontrol agent-guide        # instructions for coding agents (= docs/llms.txt)
 ```
 
@@ -142,8 +143,12 @@ epochcontrol agent-guide        # instructions for coding agents (= docs/llms.tx
 - Every command takes `--json` (format: [`schemas/cli.schema.json`](../schemas/cli.schema.json)).
 - `pause`, `resume`, `stop` also take `--by cli|agent` (recorded in the run's events) and
   `--wait SECONDS` (how long to wait for the run to confirm, default 3).
+- `wait` only reads. It returns once the run is finished, stopped, failed or lost (a
+  stalled run is still waited for) and prints it; `--timeout SECONDS` gives up with exit 5.
+- `ls` and `status` show the run's [group](#groups) (a GROUP column when any run has one;
+  `group` in `--json`).
 - Exit codes: 0 done, 1 error, 2 not found, 3 refused (for example a finished run),
-  4 ambiguous.
+  4 ambiguous, 5 timed out (`wait --timeout`).
 
 States: `starting`, `running`, `paused`, `stopping`, `stopped`, `finished`, `failed` are
 written by the run. `stalled` (no heartbeat, process alive) and `lost` (process gone) are
@@ -172,8 +177,17 @@ finished-but-unseen.
 - **Tiles** for the selected run: Progress (with ETA), Patience, Best val, Time (active,
   paused, slept).
 - **Loss chart:** train and val, best validation epoch marked in green, linear or log.
-- **Buttons:** Pause / Resume, Stop (asks first), Remote hosts (network icon), Open folder
-  (local runs only), Quit.
+- **Buttons:** Pause / Resume, Stop (asks first), Notifications (bell), Remote hosts
+  (network icon), Open folder (local runs only), Quit.
+
+**Notifications:** when a run on this Mac or a remote host finishes, fails, is stopped or
+is lost, and when a [group](#groups) with a declared total is done ("Group done · aeroconf A1 ·
+spark: 8 of 9 finished · 1 stopped or failed"). Runs that had already ended when the app
+started, or when a host first answered, are not announced. A click opens the popover on
+that run. The bell turns them off. macOS asks once for permission; if it refuses an
+unsigned build, the app falls back to Script Editor notifications.
+
+Numbers always use a decimal point (`1.350`, axis `1000`), whatever the Mac's region.
 
 The cards scroll when they do not fit on the screen; the header and buttons stay put.
 
@@ -245,6 +259,8 @@ are private to the user (0700, files 0600).
 ---
 
 ## Limits
+
+- No notification is sent while the app is not running.
 
 - Pause and Stop act between epochs (or loop items), not in the middle of one.
 - History and groups for a remote host cover its newest 300 runs while the history is open

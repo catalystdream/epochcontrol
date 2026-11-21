@@ -68,6 +68,21 @@ final class RunStore {
     /// Height the popover content needs; set by the view, followed by the popover.
     @ObservationIgnored var contentHeight: CGFloat = 0 { didSet { if contentHeight != oldValue { onHeight?(contentHeight) } } }
     @ObservationIgnored var onHeight: ((CGFloat) -> Void)?
+    /// Runs that ended and groups that completed since the last refresh (PRD APP20, APP21).
+    @ObservationIgnored var onNotices: (([Notice]) -> Void)?
+    /// The previous refresh, to tell what changed; nil until the first one (start: not news).
+    @ObservationIgnored private var previousRuns: [RunInfo]?
+    static let notificationsKey = "notificationsOn"
+    /// The bell button; on by default.
+    var notificationsOn = UserDefaults.standard.object(forKey: RunStore.notificationsKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(notificationsOn, forKey: Self.notificationsKey)
+            if notificationsOn { onNotificationsEnabled?() }
+        }
+    }
+    /// Asks the system for permission when the bell is turned on.
+    @ObservationIgnored var onNotificationsEnabled: (() -> Void)?
+    var notificationStatus = ""
 
     init(root: URL = Files.runsDirectory(), autoRefresh: Bool = true) {
         self.root = root
@@ -97,6 +112,11 @@ final class RunStore {
         let remote = hosts.flatMap { hostStates[$0]?.runs ?? [] }
         // Folder names start with the start time, so one sort mixes hosts in time order.
         runs = (local + remote).sorted { ($0.remoteID ?? $0.dir.lastPathComponent) > ($1.remoteID ?? $1.dir.lastPathComponent) }
+        if let before = previousRuns, notificationsOn {
+            let notices = Notices.between(before: before, after: runs)
+            if !notices.isEmpty { onNotices?(notices) }
+        }
+        previousRuns = runs
         if selectedID == nil || !runs.contains(where: { $0.id == selectedID }) {
             selectedID = (runs.first(where: { $0.state.isLive }) ?? runs.first)?.id
         }

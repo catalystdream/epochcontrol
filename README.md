@@ -70,6 +70,7 @@ epochcontrol status [RUN]       # one run in detail
 epochcontrol pause  [RUN]       # acts at the end of the current epoch
 epochcontrol resume [RUN]
 epochcontrol stop   [RUN]
+epochcontrol wait   [RUN]       # block until the run ends
 epochcontrol agent-guide        # instructions for coding agents
 ```
 

@@ -25,7 +25,7 @@
             "stalled",
             "lost"
           ],
-          "description": "As in status.json, except stalled (stale heartbeat, process alive) and lost (process gone), which only readers derive (PRD §11)."
+          "description": "As in status.json, except stalled (stale heartbeat, process alive) and lost (process gone), which only readers derive (PRD \u00a711)."
         },
         "epoch": {
           "type": [
@@ -83,6 +83,28 @@
         },
         "dir": {
           "type": "string"
+        },
+        "group": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Runs started by one script (PRD GRP1), as in meta.json.",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "total": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -138,7 +160,8 @@
           "enum": [
             "not_found",
             "refused",
-            "ambiguous"
+            "ambiguous",
+            "timeout"
           ]
         }
       },
