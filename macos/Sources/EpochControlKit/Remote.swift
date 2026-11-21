@@ -121,11 +121,16 @@ public struct RemoteTransport: Sendable {
                 _ = done.wait(timeout: .now() + 2)
                 throw RemoteError.timedOut
             }
-            _ = group.wait(timeout: .now() + 2)
+            // Wait until both pipes are fully read. A short wait here returned an empty reply
+            // on a busy CI runner (the readers had not finished yet).
+            if group.wait(timeout: .now() + 10) == .timedOut { throw RemoteError.timedOut }
+            let errText = String(decoding: err.data, as: UTF8.self)
+            let lastErr = errText.split(separator: "\n").last.map(String.init)
             guard p.terminationStatus == 0 else {
-                let text = String(decoding: err.data, as: UTF8.self)
-                let line = text.split(separator: "\n").last.map(String.init) ?? "exit \(p.terminationStatus)"
-                throw RemoteError.failed(code: p.terminationStatus, message: line)
+                throw RemoteError.failed(code: p.terminationStatus, message: lastErr ?? "exit \(p.terminationStatus)")
+            }
+            guard !out.data.isEmpty else { // say why, instead of "unexpected reply: "
+                throw RemoteError.failed(code: 0, message: lastErr ?? "empty reply")
             }
             return out.data
     }
